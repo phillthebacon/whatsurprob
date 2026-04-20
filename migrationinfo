@@ -1,0 +1,132 @@
+-- ============================================================
+-- whatsurprob migration: v2 (variable-free)
+-- Run in Supabase → SQL Editor → New Query → Run
+-- ============================================================
+-- Run this whole file at once. If Supabase still complains about
+-- parsing variables, run the sections one at a time (separated by
+-- the "-- ===" comment blocks).
+
+-- ============================================================
+-- SECTION 1: Add columns to problems table
+-- ============================================================
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS subdivision TEXT;
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS granularity TEXT DEFAULT 'country';
+ALTER TABLE problems ADD COLUMN IF NOT EXISTS needs INTEGER DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_problems_granularity ON problems (granularity);
+CREATE INDEX IF NOT EXISTS idx_problems_subdivision ON problems (subdivision);
+
+-- ============================================================
+-- SECTION 2: Create votes_log table
+-- ============================================================
+CREATE TABLE IF NOT EXISTS votes_log (
+  id BIGSERIAL PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  problem_id UUID NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+  vote_type TEXT NOT NULL CHECK (vote_type IN ('vote','need')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (session_id, problem_id, vote_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_votes_log_session ON votes_log (session_id);
+CREATE INDEX IF NOT EXISTS idx_votes_log_problem ON votes_log (problem_id);
+
+ALTER TABLE votes_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read votes_log" ON votes_log;
+CREATE POLICY "Anyone can read votes_log" ON votes_log FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Anyone can insert votes_log" ON votes_log;
+CREATE POLICY "Anyone can insert votes_log" ON votes_log FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Anyone can delete votes_log" ON votes_log;
+CREATE POLICY "Anyone can delete votes_log" ON votes_log FOR DELETE USING (true);
+
+-- ============================================================
+-- SECTION 3: Atomic vote function (no local variables)
+-- ============================================================
+-- Using CTEs and plain SQL language so there's nothing for the
+-- parser to confuse with table names.
+
+DROP FUNCTION IF EXISTS cast_vote(TEXT, UUID, TEXT, BOOLEAN);
+
+CREATE FUNCTION cast_vote(
+  p_session_id TEXT,
+  p_problem_id UUID,
+  p_vote_type TEXT,
+  p_add BOOLEAN
+) RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+AS $func$
+  WITH
+    validated AS (
+      SELECT p_vote_type IN ('vote','need') AS ok
+    ),
+    existing AS (
+      SELECT COUNT(*) AS n FROM votes_log
+      WHERE session_id = p_session_id
+        AND problem_id = p_problem_id
+        AND vote_type = p_vote_type
+    ),
+    do_insert AS (
+      INSERT INTO votes_log (session_id, problem_id, vote_type)
+      SELECT p_session_id, p_problem_id, p_vote_type
+      WHERE (SELECT ok FROM validated)
+        AND p_add = TRUE
+        AND (SELECT n FROM existing) = 0
+      RETURNING 1 AS applied
+    ),
+    do_delete AS (
+      DELETE FROM votes_log
+      WHERE session_id = p_session_id
+        AND problem_id = p_problem_id
+        AND vote_type = p_vote_type
+        AND (SELECT ok FROM validated)
+        AND p_add = FALSE
+        AND (SELECT n FROM existing) > 0
+      RETURNING 1 AS applied
+    ),
+    update_votes AS (
+      UPDATE problems
+      SET votes = GREATEST(0, COALESCE(votes,0) +
+        CASE
+          WHEN EXISTS (SELECT 1 FROM do_insert) AND p_vote_type = 'vote' THEN 1
+          WHEN EXISTS (SELECT 1 FROM do_delete) AND p_vote_type = 'vote' THEN -1
+          ELSE 0
+        END),
+      needs = GREATEST(0, COALESCE(needs,0) +
+        CASE
+          WHEN EXISTS (SELECT 1 FROM do_insert) AND p_vote_type = 'need' THEN 1
+          WHEN EXISTS (SELECT 1 FROM do_delete) AND p_vote_type = 'need' THEN -1
+          ELSE 0
+        END)
+      WHERE id = p_problem_id
+        AND (EXISTS (SELECT 1 FROM do_insert) OR EXISTS (SELECT 1 FROM do_delete))
+      RETURNING 1 AS updated
+    )
+  SELECT EXISTS (SELECT 1 FROM do_insert) OR EXISTS (SELECT 1 FROM do_delete)
+    OR (SELECT updated IS NOT NULL FROM update_votes LIMIT 1);
+$func$;
+
+-- ============================================================
+-- SECTION 4: Helper to fetch session votes
+-- ============================================================
+DROP FUNCTION IF EXISTS get_session_votes(TEXT);
+
+CREATE FUNCTION get_session_votes(p_session_id TEXT)
+RETURNS TABLE(problem_id UUID, vote_type TEXT)
+LANGUAGE sql
+AS $func$
+  SELECT problem_id, vote_type
+  FROM votes_log
+  WHERE session_id = p_session_id;
+$func$;
+
+-- ============================================================
+-- Verify:
+-- SELECT column_name FROM information_schema.columns WHERE table_name='problems';
+-- SELECT tablename FROM pg_tables WHERE schemaname='public';
+-- SELECT cast_vote('test-session', (SELECT id FROM problems LIMIT 1), 'vote', true);
+-- ============================================================
