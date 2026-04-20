@@ -193,44 +193,12 @@ export default function App() {
     return()=>ro.disconnect();
   },[]);
 
-  // Fetch viewport problems when map moves (debounced)
-  const fetchTimer = useRef(null);
+  // No viewport-based fetching — we fetch everything once via fetchDots and let
+  // computeVisible do client-side filtering. This sidesteps antimeridian wrap bugs
+  // in the viewport bounds math.
   const refreshViewport = useCallback(()=>{
-    if (USE_SEED) return;
-    const proj=projRef.current, svg=svgRef.current, t=tRef.current;
-    if (!proj || !svg) return;
-    const rect = svg.getBoundingClientRect();
-    const W = rect.width, H = rect.height;
-    // Figure out map bounds in lat/lng from viewport corners
-    const tl = proj.invert([(0 - t.x) / t.k, (0 - t.y) / t.k]);
-    const br = proj.invert([(W - t.x) / t.k, (H - t.y) / t.k]);
-    if (!tl || !br) return;
-
-    // Raw longitude span — might be > 360 when zoomed out with map wrap
-    const rawWest = Math.min(tl[0], br[0]);
-    const rawEast = Math.max(tl[0], br[0]);
-    const lngSpan = rawEast - rawWest;
-
-    const bounds = {
-      north: Math.min(90, Math.max(tl[1], br[1])),
-      south: Math.max(-90, Math.min(tl[1], br[1])),
-    };
-    // Only apply longitude filter when the visible span is narrower than the world.
-    // Otherwise (zoomed out, wrapping antimeridian, etc) fetch all longitudes so
-    // nothing gets cut off — client-side computeVisible handles final on-screen filtering.
-    if (lngSpan < 360 && rawWest >= -180 && rawEast <= 180) {
-      bounds.west = rawWest;
-      bounds.east = rawEast;
-    } else {
-      bounds.west = -180;
-      bounds.east = 180;
-    }
-
-    clearTimeout(fetchTimer.current);
-    fetchTimer.current = setTimeout(async ()=>{
-      const rows = await fetchProblems(bounds);
-      setDbProblems(rows.map(rowToUi));
-    }, 300);
+    // Keep dbProblems in sync with dbDots so the sidebar reflects latest state
+    setDbProblems(R.current.dbDots);
   },[]);
 
   useEffect(()=>{
