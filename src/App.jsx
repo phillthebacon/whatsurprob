@@ -1,10 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as d3 from "d3";
+import { fetchProblems, fetchDots, fetchMyVotes, submitProblem, castVote, castNeed } from "./api.js";
+import { getCountries, getStates, getCities, getSubdivisionLabel, snapCoords } from "./geo.js";
+
+// Demo mode toggle — set VITE_USE_SEED_DATA=true in .env.local for local testing with fake data
+const USE_SEED = import.meta.env?.VITE_USE_SEED_DATA === 'true';
 
 const CATEGORIES=["Healthcare","Education","Environment","Economy","Infrastructure","Safety & Security","Corruption","Housing","Food & Water","Employment","Human Rights","Technology","Transportation","Other"];
 const CC={"Healthcare":"#ef4444","Education":"#3b82f6","Environment":"#22c55e","Economy":"#f59e0b","Infrastructure":"#a855f7","Safety & Security":"#f97316","Corruption":"#dc2626","Housing":"#14b8a6","Food & Water":"#10b981","Employment":"#8b5cf6","Human Rights":"#ec4899","Technology":"#0ea5e9","Transportation":"#6366f1","Other":"#6b7280"};
 const CID={"004":"Afghanistan","008":"Albania","012":"Algeria","024":"Angola","032":"Argentina","036":"Australia","040":"Austria","050":"Bangladesh","056":"Belgium","068":"Bolivia","070":"Bosnia and Herz.","076":"Brazil","100":"Bulgaria","104":"Myanmar","116":"Cambodia","120":"Cameroon","124":"Canada","140":"Central African Rep.","144":"Sri Lanka","152":"Chile","156":"China","170":"Colombia","178":"Congo","180":"Dem. Rep. Congo","188":"Costa Rica","191":"Croatia","192":"Cuba","196":"Cyprus","203":"Czechia","208":"Denmark","214":"Dominican Rep.","218":"Ecuador","818":"Egypt","222":"El Salvador","226":"Eq. Guinea","232":"Eritrea","233":"Estonia","231":"Ethiopia","246":"Finland","250":"France","266":"Gabon","270":"Gambia","276":"Germany","288":"Ghana","300":"Greece","320":"Guatemala","324":"Guinea","328":"Guyana","332":"Haiti","340":"Honduras","348":"Hungary","352":"Iceland","356":"India","360":"Indonesia","364":"Iran","368":"Iraq","372":"Ireland","376":"Israel","380":"Italy","384":"Côte d'Ivoire","388":"Jamaica","392":"Japan","400":"Jordan","398":"Kazakhstan","404":"Kenya","408":"North Korea","410":"South Korea","414":"Kuwait","417":"Kyrgyzstan","418":"Laos","422":"Lebanon","426":"Lesotho","430":"Liberia","434":"Libya","440":"Lithuania","442":"Luxembourg","450":"Madagascar","454":"Malawi","458":"Malaysia","466":"Mali","478":"Mauritania","484":"Mexico","496":"Mongolia","498":"Moldova","504":"Morocco","508":"Mozambique","516":"Namibia","524":"Nepal","528":"Netherlands","540":"New Caledonia","554":"New Zealand","558":"Nicaragua","562":"Niger","566":"Nigeria","578":"Norway","512":"Oman","586":"Pakistan","591":"Panama","598":"Papua New Guinea","600":"Paraguay","604":"Peru","608":"Philippines","616":"Poland","620":"Portugal","630":"Puerto Rico","634":"Qatar","642":"Romania","643":"Russia","646":"Rwanda","682":"Saudi Arabia","686":"Senegal","688":"Serbia","694":"Sierra Leone","702":"Singapore","703":"Slovakia","704":"Vietnam","705":"Slovenia","706":"Somalia","710":"South Africa","716":"Zimbabwe","724":"Spain","728":"South Sudan","729":"Sudan","740":"Suriname","748":"Eswatini","752":"Sweden","756":"Switzerland","760":"Syria","762":"Tajikistan","764":"Thailand","768":"Togo","780":"Trinidad and Tobago","788":"Tunisia","792":"Turkey","795":"Turkmenistan","800":"Uganda","804":"Ukraine","784":"United Arab Emirates","826":"United Kingdom","834":"Tanzania","840":"United States of America","858":"Uruguay","860":"Uzbekistan","862":"Venezuela","887":"Yemen","894":"Zambia"};
 const USS={"01":"Alabama","02":"Alaska","04":"Arizona","05":"Arkansas","06":"California","08":"Colorado","09":"Connecticut","10":"Delaware","11":"District of Columbia","12":"Florida","13":"Georgia","15":"Hawaii","16":"Idaho","17":"Illinois","18":"Indiana","19":"Iowa","20":"Kansas","21":"Kentucky","22":"Louisiana","23":"Maine","24":"Maryland","25":"Massachusetts","26":"Michigan","27":"Minnesota","28":"Mississippi","29":"Missouri","30":"Montana","31":"Nebraska","32":"Nevada","33":"New Hampshire","34":"New Jersey","35":"New Mexico","36":"New York","37":"North Carolina","38":"North Dakota","39":"Ohio","40":"Oklahoma","41":"Oregon","42":"Pennsylvania","44":"Rhode Island","45":"South Carolina","46":"South Dakota","47":"Tennessee","48":"Texas","49":"Utah","50":"Vermont","51":"Virginia","53":"Washington","54":"West Virginia","55":"Wisconsin","56":"Wyoming"};
+
+// Map country names from Natural Earth dataset -> ISO2 codes (for csc lookup)
+const NAME_TO_ISO2 = {
+  "Afghanistan":"AF","Albania":"AL","Algeria":"DZ","Angola":"AO","Argentina":"AR","Australia":"AU","Austria":"AT","Bangladesh":"BD","Belgium":"BE","Bolivia":"BO","Bosnia and Herz.":"BA","Brazil":"BR","Bulgaria":"BG","Myanmar":"MM","Cambodia":"KH","Cameroon":"CM","Canada":"CA","Central African Rep.":"CF","Sri Lanka":"LK","Chile":"CL","China":"CN","Colombia":"CO","Congo":"CG","Dem. Rep. Congo":"CD","Costa Rica":"CR","Croatia":"HR","Cuba":"CU","Cyprus":"CY","Czechia":"CZ","Denmark":"DK","Dominican Rep.":"DO","Ecuador":"EC","Egypt":"EG","El Salvador":"SV","Eq. Guinea":"GQ","Eritrea":"ER","Estonia":"EE","Ethiopia":"ET","Finland":"FI","France":"FR","Gabon":"GA","Gambia":"GM","Germany":"DE","Ghana":"GH","Greece":"GR","Guatemala":"GT","Guinea":"GN","Guyana":"GY","Haiti":"HT","Honduras":"HN","Hungary":"HU","Iceland":"IS","India":"IN","Indonesia":"ID","Iran":"IR","Iraq":"IQ","Ireland":"IE","Israel":"IL","Italy":"IT","Côte d'Ivoire":"CI","Jamaica":"JM","Japan":"JP","Jordan":"JO","Kazakhstan":"KZ","Kenya":"KE","North Korea":"KP","South Korea":"KR","Kuwait":"KW","Kyrgyzstan":"KG","Laos":"LA","Lebanon":"LB","Lesotho":"LS","Liberia":"LR","Libya":"LY","Lithuania":"LT","Luxembourg":"LU","Madagascar":"MG","Malawi":"MW","Malaysia":"MY","Mali":"ML","Mauritania":"MR","Mexico":"MX","Mongolia":"MN","Moldova":"MD","Morocco":"MA","Mozambique":"MZ","Namibia":"NA","Nepal":"NP","Netherlands":"NL","New Caledonia":"NC","New Zealand":"NZ","Nicaragua":"NI","Niger":"NE","Nigeria":"NG","Norway":"NO","Oman":"OM","Pakistan":"PK","Panama":"PA","Papua New Guinea":"PG","Paraguay":"PY","Peru":"PE","Philippines":"PH","Poland":"PL","Portugal":"PT","Puerto Rico":"PR","Qatar":"QA","Romania":"RO","Russia":"RU","Rwanda":"RW","Saudi Arabia":"SA","Senegal":"SN","Serbia":"RS","Sierra Leone":"SL","Singapore":"SG","Slovakia":"SK","Vietnam":"VN","Slovenia":"SI","Somalia":"SO","South Africa":"ZA","Zimbabwe":"ZW","Spain":"ES","South Sudan":"SS","Sudan":"SD","Suriname":"SR","Eswatini":"SZ","Sweden":"SE","Switzerland":"CH","Syria":"SY","Tajikistan":"TJ","Thailand":"TH","Togo":"TG","Trinidad and Tobago":"TT","Tunisia":"TN","Turkey":"TR","Turkmenistan":"TM","Uganda":"UG","Ukraine":"UA","United Arab Emirates":"AE","United Kingdom":"GB","Tanzania":"TZ","United States of America":"US","Uruguay":"UY","Uzbekistan":"UZ","Venezuela":"VE","Yemen":"YE","Zambia":"ZM"
+};
 
 function decodeTopo(topology,objKey,nameMap){
   function da(t,ai){let x=0,y=0;const a=t.arcs[ai<0?~ai:ai];const p=a.map(c=>{x+=c[0];y+=c[1];return t.transform?[x*t.transform.scale[0]+t.transform.translate[0],y*t.transform.scale[1]+t.transform.translate[1]]:[x,y]});return ai<0?p.reverse():p}
@@ -15,88 +25,84 @@ function decodeTopo(topology,objKey,nameMap){
   return{type:"FeatureCollection",features:geoms.map(g=>({type:"Feature",id:g.id,properties:{name:(nameMap&&nameMap[g.id])||g.properties?.name||g.properties?.NAME||"Unknown"},geometry:dg(topology,g)}))}
 }
 
-// n = needs count (pre-seeded)
-const SEED=[
+// Seed data only used when USE_SEED env flag is set (demo mode)
+const SEED_RAW=[
   {co:"United States of America",sub:"California",cat:"Housing",desc:"Housing prices have far outpaced wages",v:847,n:420,lat:36.7,lng:-122.4},
-  {co:"United States of America",sub:"California",cat:"Environment",desc:"Wildfire risk growing every year",v:680,n:180,lat:37.5,lng:-119.5},
-  {co:"United States of America",sub:"California",cat:"Housing",desc:"Homelessness crisis in major cities",v:720,n:580,lat:34.0,lng:-118.2},
-  {co:"United States of America",sub:"New York",cat:"Housing",desc:"Rent is consuming most of people's income",v:790,n:390,lat:40.7,lng:-74.0},
-  {co:"United States of America",sub:"New York",cat:"Infrastructure",desc:"Aging subway system needs massive investment",v:520,n:110,lat:40.7,lng:-73.9},
-  {co:"United States of America",sub:"Texas",cat:"Infrastructure",desc:"Power grid vulnerability to extreme weather",v:740,n:490,lat:30.3,lng:-97.7},
-  {co:"United States of America",sub:"Texas",cat:"Healthcare",desc:"Rural hospitals closing at alarming rate",v:560,n:430,lat:31.0,lng:-100.0},
-  {co:"United States of America",sub:"Florida",cat:"Environment",desc:"Rising sea levels threatening coastal communities",v:620,n:210,lat:25.8,lng:-80.2},
-  {co:"United States of America",sub:"Michigan",cat:"Infrastructure",desc:"Lead in drinking water still affects communities",v:670,n:610,lat:43.0,lng:-83.7},
-  {co:"United States of America",sub:"Ohio",cat:"Healthcare",desc:"Opioid crisis continues to claim lives",v:710,n:620,lat:40.0,lng:-82.9},
-  {co:"United States of America",sub:"Illinois",cat:"Safety & Security",desc:"Gun violence epidemic in Chicago",v:680,n:540,lat:41.9,lng:-87.6},
   {co:"United States of America",sub:"Oklahoma",cat:"Environment",desc:"Earthquake frequency linked to wastewater injection",v:380,n:90,lat:35.5,lng:-97.5},
   {co:"United States of America",sub:"Oklahoma",cat:"Education",desc:"Teacher pay among lowest in the nation",v:470,n:150,lat:36.1,lng:-96.0},
-  {co:"United States of America",sub:"Oklahoma",cat:"Healthcare",desc:"Rural hospital closures leaving gaps in care",v:420,n:350,lat:34.5,lng:-96.0},
-  {co:"United States of America",sub:"Oklahoma",cat:"Infrastructure",desc:"Tornado damage recurring annually",v:350,n:280,lat:35.2,lng:-97.9},
-  {co:"United States of America",cat:"Education",desc:"Student loan debt crushing a generation",v:589,n:120,lat:38.9,lng:-77.0},
-  {co:"United States of America",cat:"Safety & Security",desc:"Gun violence remains a persistent crisis",v:534,n:430,lat:38.9,lng:-77.0},
   {co:"United Kingdom",cat:"Healthcare",desc:"NHS waiting times are dangerously long",v:720,n:580,lat:51.5,lng:-0.1},
-  {co:"United Kingdom",cat:"Housing",desc:"Rent prices in cities unsustainable",v:651,n:320,lat:51.5,lng:-0.1},
-  {co:"United Kingdom",cat:"Economy",desc:"Cost of living crisis affecting millions",v:590,n:410,lat:53.5,lng:-2.2},
   {co:"India",cat:"Environment",desc:"Air pollution at dangerous levels in cities",v:890,n:750,lat:28.6,lng:77.2},
-  {co:"India",cat:"Food & Water",desc:"Clean drinking water unavailable in villages",v:810,n:780,lat:20.6,lng:79.0},
-  {co:"India",cat:"Employment",desc:"Youth unemployment alarmingly high",v:670,n:290,lat:19.1,lng:73.0},
-  {co:"India",cat:"Education",desc:"Quality education not accessible to all",v:720,n:350,lat:22.6,lng:88.4},
-  {co:"Brazil",cat:"Safety & Security",desc:"Crime rates very high in urban areas",v:780,n:620,lat:-22.9,lng:-43.2},
   {co:"Brazil",cat:"Environment",desc:"Deforestation of the Amazon accelerating",v:850,n:380,lat:-3.1,lng:-60.0},
-  {co:"Brazil",cat:"Corruption",desc:"Political corruption undermines trust",v:690,n:180,lat:-15.8,lng:-47.9},
-  {co:"Nigeria",cat:"Corruption",desc:"Corruption diverts public funds",v:730,n:410,lat:6.5,lng:3.4},
-  {co:"Nigeria",cat:"Food & Water",desc:"Food insecurity affecting millions",v:770,n:720,lat:10.5,lng:7.4},
-  {co:"Germany",cat:"Housing",desc:"Housing shortage in major cities",v:480,n:190,lat:52.5,lng:13.4},
-  {co:"Germany",cat:"Economy",desc:"Energy costs impacting industry",v:420,n:140,lat:50.1,lng:8.7},
-  {co:"Japan",cat:"Economy",desc:"Aging population straining systems",v:650,n:310,lat:35.7,lng:139.7},
-  {co:"Japan",cat:"Employment",desc:"Work culture causing burnout",v:580,n:220,lat:34.7,lng:135.5},
-  {co:"China",cat:"Environment",desc:"Industrial pollution affecting health",v:700,n:510,lat:39.9,lng:116.4},
-  {co:"China",cat:"Employment",desc:"Youth unemployment rising sharply",v:620,n:250,lat:23.1,lng:113.3},
-  {co:"Australia",cat:"Environment",desc:"Wildfires and drought worsening",v:540,n:320,lat:-33.9,lng:151.2},
-  {co:"Australia",cat:"Housing",desc:"Home ownership impossible for youth",v:610,n:280,lat:-37.8,lng:145.0},
-  {co:"France",cat:"Economy",desc:"Cost of living protests ongoing",v:480,n:290,lat:48.9,lng:2.3},
-  {co:"South Africa",cat:"Employment",desc:"Unemployment at record levels",v:710,n:580,lat:-26.2,lng:28.0},
-  {co:"South Africa",cat:"Infrastructure",desc:"Rolling blackouts disrupting life",v:680,n:550,lat:-33.9,lng:18.4},
-  {co:"Mexico",cat:"Safety & Security",desc:"Cartel violence affecting communities",v:680,n:560,lat:19.4,lng:-99.1},
-  {co:"Ukraine",cat:"Safety & Security",desc:"Ongoing conflict devastating communities",v:900,n:810,lat:50.4,lng:30.5},
-  {co:"Russia",cat:"Human Rights",desc:"Civil liberties being restricted",v:650,n:180,lat:55.8,lng:37.6},
-  {co:"Argentina",cat:"Economy",desc:"Hyperinflation eroding purchasing power",v:740,n:560,lat:-34.6,lng:-58.4},
-  {co:"Spain",cat:"Employment",desc:"Youth unemployment remains very high",v:530,n:210,lat:40.4,lng:-3.7},
-  {co:"South Korea",cat:"Employment",desc:"Extreme work pressure and competition",v:520,n:170,lat:37.6,lng:127.0},
-  {co:"Kenya",cat:"Food & Water",desc:"Drought causing food shortages",v:640,n:600,lat:-1.3,lng:36.8},
-  {co:"Egypt",cat:"Food & Water",desc:"Water scarcity a growing crisis",v:620,n:570,lat:30.0,lng:31.2},
-  {co:"Philippines",cat:"Environment",desc:"Typhoons devastating communities",v:590,n:470,lat:14.6,lng:121.0},
-  {co:"Indonesia",cat:"Environment",desc:"Deforestation threatening biodiversity",v:530,n:200,lat:-6.2,lng:106.8},
-  {co:"Turkey",cat:"Economy",desc:"Currency instability affecting lives",v:560,n:340,lat:41.0,lng:29.0},
-  {co:"Ethiopia",cat:"Food & Water",desc:"Millions face food insecurity",v:720,n:690,lat:9.0,lng:38.7},
-  {co:"Pakistan",cat:"Education",desc:"Millions of children out of school",v:710,n:480,lat:33.7,lng:73.0},
-  {co:"Canada",cat:"Housing",desc:"Housing affordability crisis nationwide",v:580,n:240,lat:43.7,lng:-79.4},
-  {co:"Canada",cat:"Healthcare",desc:"Doctor shortages in rural communities",v:450,n:360,lat:56.1,lng:-106.3},
-].map((p,i)=>({id:'s'+i,...p}));
+];
+const SEED = USE_SEED ? SEED_RAW.map((p,i)=>({
+  id:'s'+i,
+  description:p.desc, category:p.cat, country:p.co, subdivision:p.sub||null,
+  city:null, granularity:p.sub?'subdivision':'country',
+  lat:p.lat, lng:p.lng, votes:p.v, needs:p.n
+})) : [];
 
 const SUBS_COUNTRIES=new Set(["United States of America"]);
 
-export default function App(){
+// Adapter: converts a DB row (description, category, country, subdivision, votes, needs)
+// to the shorthand shape the UI renders (desc, cat, co, sub, v, n).
+// We keep the UI code using the old shorthand so rendering logic is unchanged.
+function rowToUi(r) {
+  return {
+    id: r.id,
+    desc: r.description,
+    cat: r.category,
+    co: r.country,
+    sub: r.subdivision,
+    city: r.city,
+    gran: r.granularity,
+    lat: r.lat,
+    lng: r.lng,
+    v: r.votes || 0,
+    n: r.needs || 0,
+  };
+}
+
+export default function App() {
   const[worldGeo,setWorldGeo]=useState(null);
   const[statesGeo,setStatesGeo]=useState(null);
   const[loading,setLoading]=useState(true);
   const[dark,setDark]=useState(()=>{try{return localStorage.getItem('wup-dark')==='true'}catch(e){return false}});
   const toggleDark=()=>{const n=!dark;setDark(n);try{localStorage.setItem('wup-dark',n?'true':'false')}catch(e){}};
-  const[userProblems,setUserProblems]=useState([]);
-  // votes = {id:true} for problems you +1'd, myNeeds = {id:true} for problems you flagged as need
+
+  // DB-backed state (replaces SEED for production)
+  const[dbProblems,setDbProblems]=useState(SEED); // for sidebar list
+  const[dbDots,setDbDots]=useState(SEED); // for map dots (wider scope)
+
+  // Per-session vote tracking — restored from DB on load so votes persist across browsers w/ same session
   const[votes,setVotes]=useState({});
   const[myNeeds,setMyNeeds]=useState({});
+
   const[locked,setLocked]=useState(null);
-  const[visibleProbs,setVisibleProbs]=useState(SEED);
+  const[visibleProbs,setVisibleProbs]=useState([]);
   const[sortBy,setSortBy]=useState("votes");
   const[filterCat,setFilterCat]=useState("All");
+
+  // Submit form state
   const[submitOpen,setSubmitOpen]=useState(false);
   const[formCat,setFormCat]=useState("");
   const[formDesc,setFormDesc]=useState("");
+  const[formGran,setFormGran]=useState("country"); // 'country' | 'subdivision' | 'city'
+  const[formCountryIso,setFormCountryIso]=useState(""); // ISO2
+  const[formCountryName,setFormCountryName]=useState("");
+  const[formStateCode,setFormStateCode]=useState("");
+  const[formStateName,setFormStateName]=useState("");
+  const[formCityName,setFormCityName]=useState("");
+  const[countriesList,setCountriesList]=useState([]);
+  const[statesList,setStatesList]=useState([]);
+  const[citiesList,setCitiesList]=useState([]);
   const[submitted,setSubmitted]=useState(false);
+  const[submitting,setSubmitting]=useState(false);
+
+  // Auto-detected location — used as default for the granularity picker
   const[userLoc,setUserLoc]=useState(null);
   const[locating,setLocating]=useState(false);
   const[userCountry,setUserCountry]=useState("");
+
   const[tip,setTip]=useState({show:false,x:0,y:0,name:"",count:0});
   const[zoomK,setZoomK]=useState(1);
   const[search,setSearch]=useState("");
@@ -110,8 +116,9 @@ export default function App(){
   const svgRef=useRef(null);const gRef=useRef(null);const dotsRef=useRef(null);
   const containerRef=useRef(null);const projRef=useRef(null);const zoomBeh=useRef(null);
   const tRef=useRef(d3.zoomIdentity);const mwRef=useRef(0);
-  const R=useRef({});R.current={dark,locked,userProblems,votes,showDots};
+  const R=useRef({});R.current={dark,locked,dbProblems,dbDots,votes,showDots};
 
+  // Load world map data
   useEffect(()=>{
     fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       .then(r=>r.json()).then(topo=>{setWorldGeo(decodeTopo(topo,"countries",CID));setLoading(false)}).catch(()=>setLoading(false));
@@ -119,11 +126,44 @@ export default function App(){
       .then(r=>r.json()).then(topo=>{setStatesGeo(decodeTopo(topo,"states",USS))}).catch(()=>{});
   },[]);
 
+  // Load DB data on mount (skipped in demo mode)
+  useEffect(()=>{
+    if (USE_SEED) return;
+    (async ()=>{
+      const [dots, myV] = await Promise.all([fetchDots(), fetchMyVotes()]);
+      setDbDots(dots.map(rowToUi));
+      setDbProblems(dots.map(rowToUi)); // initial — viewport fetch will replace
+      setVotes(myV.votes);
+      setMyNeeds(myV.needs);
+    })();
+  },[]);
+
+  // Load countries list for the form (lazy — only when form opens)
+  useEffect(()=>{
+    if (!submitOpen || countriesList.length > 0) return;
+    getCountries().then(list => setCountriesList(list)).catch(e => console.error('getCountries:', e));
+  },[submitOpen, countriesList.length]);
+
+  // Fetch states when country changes
+  useEffect(()=>{
+    if (!formCountryIso) { setStatesList([]); return; }
+    getStates(formCountryIso).then(list => setStatesList(list || [])).catch(()=>setStatesList([]));
+    setFormStateCode(""); setFormStateName(""); setFormCityName(""); setCitiesList([]);
+  },[formCountryIso]);
+
+  // Fetch cities when state changes
+  useEffect(()=>{
+    if (!formCountryIso || !formStateCode) { setCitiesList([]); return; }
+    getCities(formCountryIso, formStateCode).then(list => setCitiesList(list || [])).catch(()=>setCitiesList([]));
+    setFormCityName("");
+  },[formCountryIso, formStateCode]);
+
+  // Compute which problems are visible based on viewport (uses dbProblems)
   const computeVisible=useCallback(()=>{
     const proj=projRef.current,svg=svgRef.current,t=tRef.current,r=R.current;
     if(!proj||!svg)return;
     const rect=svg.getBoundingClientRect();const W=rect.width,H=rect.height;
-    const ap=[...SEED,...r.userProblems];const lk=r.locked;const mw=mwRef.current;
+    const ap=r.dbProblems;const lk=r.locked;const mw=mwRef.current;
     setVisibleProbs(ap.filter(p=>{
       if(lk){if(lk.level==="country"&&p.co!==lk.name)return false;if(lk.level==="state"&&p.sub!==lk.name)return false}
       if(p.lat==null||p.lng==null)return false;
@@ -138,11 +178,11 @@ export default function App(){
     const proj=projRef.current;const t=tRef.current;const dotsG=dotsRef.current;
     if(!proj||!dotsG)return;const g=d3.select(dotsG);g.selectAll("*").remove();
     if(!R.current.showDots)return;
-    const ap=[...SEED,...R.current.userProblems];const mw=mwRef.current;
+    const ap=R.current.dbDots;const mw=mwRef.current;
     const clusters={};
     ap.forEach(p=>{if(p.lat==null||p.lng==null)return;const rk=Math.round(p.lat*2)/2+','+Math.round(p.lng*2)/2;
       if(!clusters[rk])clusters[rk]={lat:p.lat,lng:p.lng,count:0,topCat:p.cat,maxV:0};clusters[rk].count++;
-      if(p.v>clusters[rk].maxV){clusters[rk].maxV=p.v;clusters[rk].topCat=p.cat}});
+      if((p.v||0)>clusters[rk].maxV){clusters[rk].maxV=p.v||0;clusters[rk].topCat=p.cat}});
     const maxC=Math.max(...Object.values(clusters).map(c=>c.count),1);const k=t.k;
     Object.values(clusters).forEach(cl=>{const[px,py]=proj([cl.lng,cl.lat]);const r=Math.max(1.5,(2+cl.count/maxC*4)/k);const color=CC[cl.topCat]||"#888";
       [-mw,0,mw].forEach(ox=>{g.append("circle").attr("cx",px+ox).attr("cy",py).attr("r",r).attr("fill",color).attr("fill-opacity",0.7).attr("stroke",color).attr("stroke-opacity",0.3).attr("stroke-width",r*0.8).style("pointer-events","none")})});
@@ -150,7 +190,6 @@ export default function App(){
 
   const[mapSize,setMapSize]=useState({w:0,h:0});
 
-  // Track container size
   useEffect(()=>{
     const el=containerRef.current;if(!el)return;
     const ro=new ResizeObserver(()=>{
@@ -159,6 +198,31 @@ export default function App(){
     });
     ro.observe(el);
     return()=>ro.disconnect();
+  },[]);
+
+  // Fetch viewport problems when map moves (debounced)
+  const fetchTimer = useRef(null);
+  const refreshViewport = useCallback(()=>{
+    if (USE_SEED) return;
+    const proj=projRef.current, svg=svgRef.current, t=tRef.current;
+    if (!proj || !svg) return;
+    const rect = svg.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    // Figure out map bounds in lat/lng
+    const tl = proj.invert([(0 - t.x) / t.k, (0 - t.y) / t.k]);
+    const br = proj.invert([(W - t.x) / t.k, (H - t.y) / t.k]);
+    if (!tl || !br) return;
+    const bounds = {
+      north: Math.min(90, Math.max(tl[1], br[1])),
+      south: Math.max(-90, Math.min(tl[1], br[1])),
+      west: Math.max(-180, Math.min(tl[0], br[0])),
+      east: Math.min(180, Math.max(tl[0], br[0])),
+    };
+    clearTimeout(fetchTimer.current);
+    fetchTimer.current = setTimeout(async ()=>{
+      const rows = await fetchProblems(bounds);
+      setDbProblems(rows.map(rowToUi));
+    }, 300);
   },[]);
 
   useEffect(()=>{
@@ -179,42 +243,34 @@ export default function App(){
     const[,yT]=proj([0,85]);const[,yB]=proj([0,-85]);
     const zoom=d3.zoom().scaleExtent([1,25]).filter(ev=>!ev.target.closest||!ev.target.closest('button,input,select,textarea')).on("zoom",ev=>{
       let{x,y,k}=ev.transform;
-
-      // Horizontal wrap
       const smw=mw*k;
       x=((x%smw)+smw)%smw;
       if(x>smw/2)x-=smw;
-
-      // Vertical clamp — gently nudge back in bounds without overriding mouse zoom
       const mapPixelH=(yB-yT)*k;
       if(mapPixelH<=H){
-        // Map shorter than viewport — center it
         y=(H-yT*k-yB*k)/2;
       } else {
-        // Clamp so top/bottom edges don't go past viewport
-        const minY=H-yB*k;  // bottom edge at viewport bottom
-        const maxY=-yT*k;    // top edge at viewport top
+        const minY=H-yB*k;
+        const maxY=-yT*k;
         if(y>maxY)y=maxY;
         if(y<minY)y=minY;
       }
-
       const t=d3.zoomIdentity.translate(x,y).scale(k);
       tRef.current=t;
       g.attr("transform",t);
       setZoomK(k);
-
       g.selectAll(".country").attr("stroke-width",Math.max(0.15,0.6/k));
       g.selectAll(".adm1").attr("stroke-width",Math.max(0.1,0.5/k));
       g.selectAll(".grat").attr("stroke-width",Math.max(0.05,0.3/k));
       const show=k>2.5;
       g.selectAll(".adm1").style("display",show?"block":"none");
       g.selectAll(".country").each(function(){const el=d3.select(this);if(show&&SUBS_COUNTRIES.has(el.attr("data-name"))){el.attr("fill-opacity",0).attr("stroke-opacity",0)}else{el.attr("fill-opacity",1).attr("stroke-opacity",1)}});
-      applyColors(k);updateDots();computeVisible()
+      applyColors(k);updateDots();computeVisible();refreshViewport();
     });
     zoomBeh.current=zoom;svg.call(zoom);
     svg.on("click.ds",()=>{R.current.locked=null;setLocked(null)});
     const attachMouse=(sel,level)=>{sel.on("mouseenter",function(ev,d){
-      const name=d.properties.name;const ap=[...SEED,...R.current.userProblems];
+      const name=d.properties.name;const ap=R.current.dbProblems;
       const count=level==="country"?ap.filter(p=>p.co===name).length:ap.filter(p=>p.sub===name).length;
       const rect=containerRef.current.getBoundingClientRect();
       setTip({show:true,x:ev.clientX-rect.left,y:ev.clientY-rect.top-14,name,count});
@@ -223,10 +279,10 @@ export default function App(){
     }).on("mouseleave",function(ev,d){setTip(prev=>({...prev,show:false}));g.selectAll("."+d3.select(this).attr("class").split(" ")[0]).filter(function(){return d3.select(this).attr("data-name")===d.properties.name}).classed("hovered",false);applyColors(tRef.current.k)
     }).on("click",function(ev,d){ev.stopPropagation();const name=d.properties.name;const prev=R.current.locked;const next=(prev&&prev.name===name&&prev.level===level)?null:{name,level};R.current.locked=next;setLocked(next);setFilterCat("All");setSearch("");applyColors(tRef.current.k);setTimeout(()=>computeVisible(),10)})};
     attachMouse(g.selectAll(".country"),"country");attachMouse(g.selectAll(".adm1"),"state");
-    applyColors(1);updateDots();computeVisible();
-  },[worldGeo,statesGeo,mapSize,computeVisible,updateDots]);
+    applyColors(1);updateDots();computeVisible();refreshViewport();
+  },[worldGeo,statesGeo,mapSize,computeVisible,updateDots,refreshViewport]);
 
-  function applyColors(k){const r=R.current;const dk=r.dark;const lk=r.locked;const ap=[...SEED,...r.userProblems];const show=k>2.5;
+  function applyColors(k){const r=R.current;const dk=r.dark;const lk=r.locked;const ap=r.dbDots;const show=k>2.5;
     const coC={};ap.forEach(p=>{coC[p.co]=(coC[p.co]||0)+1});const coM=Math.max(...Object.values(coC),1);
     const subC={};ap.forEach(p=>{if(p.sub)subC[p.sub]=(subC[p.sub]||0)+1});const subM=Math.max(...Object.values(subC),1);
     const g=d3.select(gRef.current);
@@ -244,42 +300,144 @@ export default function App(){
       else el.attr("fill",dk?"#252840":"#ccd0dc");el.attr("stroke",dk?"#3c4060":"#9aa0b4")});
     g.selectAll(".grat").attr("stroke",dk?"#242638":"#c8ccd8")}
 
-  useEffect(()=>{if(!gRef.current)return;applyColors(tRef.current.k);updateDots();computeVisible()},[dark,locked,userProblems.length,showDots,computeVisible,updateDots]);
+  useEffect(()=>{if(!gRef.current)return;applyColors(tRef.current.k);updateDots();computeVisible()},[dark,locked,dbProblems.length,dbDots.length,showDots,computeVisible,updateDots]);
 
   const findCountry=(lat,lng)=>{if(!worldGeo)return"Unknown";const pt=[lng,lat];for(const f of worldGeo.features){if(d3.geoContains(f,pt))return f.properties.name}return"Unknown"};
-  const requestLoc=()=>{if(userLoc)return;setLocating(true);navigator.geolocation?.getCurrentPosition(p=>{const loc={lat:p.coords.latitude,lng:p.coords.longitude};setUserLoc(loc);setUserCountry(findCountry(loc.lat,loc.lng));setLocating(false)},()=>{const loc={lat:36.1,lng:-96.0};setUserLoc(loc);setUserCountry(findCountry(loc.lat,loc.lng));setLocating(false)},{timeout:8000})};
+  const requestLoc=()=>{if(userLoc)return;setLocating(true);navigator.geolocation?.getCurrentPosition(p=>{const loc={lat:p.coords.latitude,lng:p.coords.longitude};setUserLoc(loc);const c=findCountry(loc.lat,loc.lng);setUserCountry(c);const iso=NAME_TO_ISO2[c];if(iso){setFormCountryIso(iso);setFormCountryName(c)}setLocating(false)},()=>{const loc={lat:36.1,lng:-96.0};setUserLoc(loc);const c=findCountry(loc.lat,loc.lng);setUserCountry(c);const iso=NAME_TO_ISO2[c];if(iso){setFormCountryIso(iso);setFormCountryName(c)}setLocating(false)},{timeout:8000})};
 
   const getDisplay=()=>{
     const agg={};visibleProbs.forEach(p=>{const k=p.cat+'::'+p.desc;if(!agg[k])agg[k]={...p,count:1};else{agg[k].v+=p.v||1;agg[k].n=(agg[k].n||0)+(p.n||0);agg[k].count++}});
     let arr=Object.values(agg);
     if(filterCat!=='All')arr=arr.filter(p=>p.cat===filterCat);
-    if(search.trim()){const s=search.toLowerCase();arr=arr.filter(p=>p.desc.toLowerCase().includes(s)||p.co.toLowerCase().includes(s)||(p.sub||'').toLowerCase().includes(s)||p.cat.toLowerCase().includes(s))}
-    // Get total votes and needs for sorting (base + user's vote/need)
-    const tv=p=>(p.v||0)+(votes[p.id]?1:0);
-    const tn=p=>(p.n||0)+(myNeeds[p.id]?1:0);
+    if(search.trim()){const s=search.toLowerCase();arr=arr.filter(p=>p.desc.toLowerCase().includes(s)||(p.co||'').toLowerCase().includes(s)||(p.sub||'').toLowerCase().includes(s)||(p.city||'').toLowerCase().includes(s)||p.cat.toLowerCase().includes(s))}
+    const tv=p=>(p.v||0);
+    const tn=p=>(p.n||0);
     if(sortBy==='votes')arr.sort((a,b)=>(tv(b)+tn(b))-(tv(a)+tn(a)));
     else if(sortBy==='urgent')arr.sort((a,b)=>tn(b)-tn(a));
     else if(sortBy==='newest')arr.sort((a,b)=>b.id>a.id?1:-1);
-    else if(sortBy==='rising'){const now=Date.now();arr.sort((a,b)=>{const aA=Math.max(1,(now-(parseInt(a.id.replace(/\D/g,''))||now-864e5))/36e5);const bA=Math.max(1,(now-(parseInt(b.id.replace(/\D/g,''))||now-864e5))/36e5);return tv(b)/bA-tv(a)/aA})}
+    else if(sortBy==='rising'){arr.sort((a,b)=>tv(b)-tv(a))}
     return arr};
 
-  const canSubmit=formCat&&formDesc.trim()&&userLoc;
-  const handleSubmit=()=>{if(!canSubmit)return;
-    const np={id:'u'+Date.now(),co:userCountry||'Unknown',cat:formCat,desc:formDesc.trim(),v:1,n:0,lat:userLoc.lat,lng:userLoc.lng};
-    setUserProblems(prev=>[...prev,np]);setVisibleProbs(prev=>[np,...prev]);
-    setFormCat('');setFormDesc('');setSubmitted(true);setSubmitOpen(false);
-    setTimeout(()=>setSubmitted(false),2500)};
+  // canSubmit depends on granularity
+  const canSubmit=(()=>{
+    if(!formCat || !formDesc.trim() || !formCountryIso) return false;
+    if(formGran==='subdivision' && !formStateCode) return false;
+    if(formGran==='city' && (!formStateCode || !formCityName)) return false;
+    return true;
+  })();
+
+  const handleSubmit=async()=>{
+    if(!canSubmit || submitting) return;
+    setSubmitting(true);
+
+    let lat, lng, subdivision=null, city=null;
+    const countryObj = countriesList.find(c=>c.iso2===formCountryIso);
+    if (formGran === 'country') {
+      lat = parseFloat(countryObj?.latitude ?? 0);
+      lng = parseFloat(countryObj?.longitude ?? 0);
+    } else if (formGran === 'subdivision') {
+      const st = statesList.find(s=>s.iso2===formStateCode || s.state_code===formStateCode);
+      lat = parseFloat(st?.latitude ?? countryObj?.latitude ?? 0);
+      lng = parseFloat(st?.longitude ?? countryObj?.longitude ?? 0);
+      subdivision = formStateName;
+    } else { // city
+      const ct = citiesList.find(c=>c.name===formCityName);
+      const raw = { lat: parseFloat(ct?.latitude ?? 0), lng: parseFloat(ct?.longitude ?? 0) };
+      const snapped = snapCoords(raw.lat, raw.lng, 'city');
+      lat = snapped.lat; lng = snapped.lng;
+      subdivision = formStateName;
+      city = formCityName;
+    }
+
+    const payload = {
+      desc: formDesc.trim(),
+      cat: formCat,
+      country: formCountryName,
+      subdivision, city,
+      granularity: formGran,
+      lat, lng,
+    };
+
+    if (USE_SEED) {
+      // Demo mode — just add to local state
+      const fake = { id:'u'+Date.now(), description:payload.desc, category:payload.cat,
+        country:payload.country, subdivision, city, granularity:formGran,
+        lat, lng, votes:1, needs:0 };
+      setDbProblems(p=>[rowToUi(fake), ...p]);
+      setDbDots(p=>[rowToUi(fake), ...p]);
+      setVotes(v=>({...v,[fake.id]:true}));
+    } else {
+      const row = await submitProblem(payload);
+      if (row) {
+        const ui = rowToUi(row);
+        setDbProblems(p=>[ui, ...p]);
+        setDbDots(p=>[ui, ...p]);
+        setVotes(v=>({...v,[row.id]:true}));
+      }
+    }
+
+    setFormCat(''); setFormDesc(''); setFormGran('country');
+    setFormStateCode(''); setFormStateName(''); setFormCityName('');
+    setSubmitted(true); setSubmitOpen(false); setSubmitting(false);
+    setTimeout(()=>setSubmitted(false), 2500);
+  };
+
+  // Voting handlers — optimistic UI, syncs with DB
+  const handleVote = async (p) => {
+    const wasVoted = !!votes[p.id];
+    // Optimistic update
+    setVotes(prev=>{
+      const n={...prev};
+      if(n[p.id]){
+        delete n[p.id];
+        setMyNeeds(pv=>{const nn={...pv};if(nn[p.id]){delete nn[p.id]}return nn});
+      } else n[p.id]=true;
+      return n;
+    });
+    setDbProblems(prev => prev.map(x => x.id===p.id ? {...x, v: Math.max(0,(x.v||0)+(wasVoted?-1:1))} : x));
+    setDbDots(prev => prev.map(x => x.id===p.id ? {...x, v: Math.max(0,(x.v||0)+(wasVoted?-1:1))} : x));
+
+    if (USE_SEED) return;
+
+    // Sync with DB. If user had a need flag, remove that too.
+    const ok = await castVote(p.id, !wasVoted);
+    if (!ok) {
+      // Server rejected (dupe or error) — re-sync from server
+      const myV = await fetchMyVotes();
+      setVotes(myV.votes); setMyNeeds(myV.needs);
+    }
+    if (wasVoted && myNeeds[p.id]) {
+      await castNeed(p.id, false);
+    }
+  };
+
+  const handleNeed = async (p) => {
+    const wasSet = !!myNeeds[p.id];
+    setMyNeeds(prev=>{const n={...prev};if(n[p.id])delete n[p.id];else n[p.id]=true;return n});
+    setDbProblems(prev => prev.map(x => x.id===p.id ? {...x, n: Math.max(0,(x.n||0)+(wasSet?-1:1))} : x));
+    setDbDots(prev => prev.map(x => x.id===p.id ? {...x, n: Math.max(0,(x.n||0)+(wasSet?-1:1))} : x));
+
+    if (USE_SEED) return;
+
+    const ok = await castNeed(p.id, !wasSet);
+    if (!ok) {
+      const myV = await fetchMyVotes();
+      setVotes(myV.votes); setMyNeeds(myV.needs);
+    }
+  };
 
   const dp=getDisplay();
   const THRESHOLD=10;
-  const tvFn=p=>(p.v||0)+(votes[p.id]?1:0);
-  const tnFn=p=>(p.n||0)+(myNeeds[p.id]?1:0);
+  const tvFn=p=>(p.v||0);
+  const tnFn=p=>(p.n||0);
   const maxV=dp.length>0?tvFn(dp[0]):1;
   const confirmedCount=dp.filter(p=>tvFn(p)>=THRESHOLD).length;
   const issueCount=dp.filter(p=>tvFn(p)<THRESHOLD).length;
   const aCats=[...new Set(visibleProbs.map(p=>p.cat))];const label=locked?locked.name:"Visible Area";
   const th=dark?{bg:"#0e0f14",sf:"#16171e",bd:"#262938",tx:"#e0e2ea",tm:"#6a6d82",ac:"#5b7cfa",as:"rgba(91,124,250,0.08)",cd:"#191a24",sh:"rgba(0,0,0,0.5)",mb:"#111218"}
     :{bg:"#f3f4f6",sf:"#ffffff",bd:"#e0e2e8",tx:"#181920",tm:"#6a6d80",ac:"#4a6cf7",as:"rgba(74,108,247,0.05)",cd:"#f4f5f8",sh:"rgba(0,0,0,0.04)",mb:"#eaecf0"};
+
+  const subLabel = getSubdivisionLabel(formCountryIso);
 
   const sidebarContent=<>
     <div style={{padding:"10px 14px",borderBottom:`1px solid ${th.bd}`}}>
@@ -305,6 +463,7 @@ export default function App(){
     <div style={{flex:1,overflowY:"auto",padding:"6px 10px"}}>
       {dp.length===0?<div style={{textAlign:"center",padding:"40px 16px",color:th.tm,animation:"fadeIn 0.3s ease"}}><div style={{fontSize:32,marginBottom:8,opacity:0.35}}>🌍</div><p style={{fontSize:13,fontWeight:600}}>No problems found</p><p style={{fontSize:11,marginTop:3}}>{search?"Try different search terms":"Zoom out or change filter"}</p></div>
       :dp.map((p,i)=>{const pv=tvFn(p);const pn=tnFn(p);const bw=Math.max(6,(pv/maxV)*100);const cc=CC[p.cat]||"#888";const isIssue=pv<THRESHOLD;
+        const locDisplay = p.city ? `${p.city}, ${p.sub||''}` : (p.sub || '');
         return <div key={p.id+i} className="pc" style={{padding:"11px 13px",marginBottom:5,borderRadius:9,background:th.cd,border:`1px solid ${isIssue?th.bd:cc+'20'}`,position:"relative",overflow:"hidden",cursor:"default",opacity:isIssue?0.7:1,animation:`fadeIn 0.2s ease ${Math.min(i*0.02,0.25)}s both`}}>
           <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${bw}%`,background:`linear-gradient(90deg,${cc}0d,transparent)`}}/>
           <div style={{position:"relative",zIndex:1}}>
@@ -315,7 +474,7 @@ export default function App(){
                 {isIssue&&<span style={{fontSize:8,fontWeight:700,color:th.tm,background:th.bd,padding:"1px 6px",borderRadius:4}}>ISSUE · {THRESHOLD-pv} more</span>}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-                {p.sub&&<span style={{fontSize:8.5,color:th.tm,fontWeight:500,background:th.as,padding:"1px 5px",borderRadius:6}}>{p.sub}</span>}
+                {locDisplay&&<span style={{fontSize:8.5,color:th.tm,fontWeight:500,background:th.as,padding:"1px 5px",borderRadius:6}}>{locDisplay}</span>}
                 <span style={{fontSize:8.5,color:th.tm,fontWeight:500,background:th.as,padding:"1px 5px",borderRadius:6}}>{p.co?.length>18?p.co.split(" ").map(w=>w[0]).join(""):p.co}</span>
               </div>
             </div>
@@ -330,12 +489,10 @@ export default function App(){
                 </span>}
               </div>
               <div style={{display:"flex",gap:4}}>
-                <button className="vb" onClick={()=>{
-                  setVotes(prev=>{const n={...prev};if(n[p.id]){delete n[p.id];setMyNeeds(pv=>{const nn={...pv};delete nn[p.id];return nn})}else{n[p.id]=true}return n})
-                }} style={{background:votes[p.id]?th.as:"transparent",border:`1px solid ${votes[p.id]?th.ac+'40':th.bd}`,color:votes[p.id]?th.ac:th.tm,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                <button className="vb" onClick={()=>handleVote(p)} style={{background:votes[p.id]?th.as:"transparent",border:`1px solid ${votes[p.id]?th.ac+'40':th.bd}`,color:votes[p.id]?th.ac:th.tm,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
                   {votes[p.id]?"✓ Voted":"▲ +1"}
                 </button>
-                {votes[p.id]&&<button onClick={()=>setMyNeeds(prev=>{const n={...prev};if(n[p.id])delete n[p.id];else n[p.id]=true;return n})}
+                {votes[p.id]&&<button onClick={()=>handleNeed(p)}
                   style={{background:myNeeds[p.id]?"#f59e0b18":"transparent",border:`1px solid ${myNeeds[p.id]?"#f59e0b40":th.bd}`,color:myNeeds[p.id]?"#f59e0b":th.tm,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
                   ⚡ Need
                 </button>}
@@ -364,7 +521,7 @@ export default function App(){
       <div style={{display:"flex",alignItems:"center",gap:isMobile?8:12,padding:isMobile?"8px 10px":"8px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:isMobile?6:10,flexShrink:0}}>
           <div style={{width:isMobile?28:30,height:isMobile?28:30,borderRadius:8,background:`linear-gradient(135deg,${th.ac},#a78bfa)`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:isMobile?12:14,fontWeight:800}}>?</div>
-          {!isMobile&&<span style={{fontSize:15,fontWeight:800,letterSpacing:"-0.04em"}}>whatsurprob</span>}
+          {!isMobile&&<span style={{fontSize:15,fontWeight:800,letterSpacing:"-0.04em"}}>whatsurprob{USE_SEED&&<span style={{fontSize:9,color:"#f59e0b",marginLeft:6,fontWeight:600}}>DEMO</span>}</span>}
         </div>
         <div style={{flex:1,display:"flex",alignItems:"center",gap:isMobile?6:8}}>
           <input className="hi" value={formDesc} onChange={e=>setFormDesc(e.target.value)} placeholder="whats your problem?"
@@ -374,8 +531,8 @@ export default function App(){
             style={{padding:isMobile?"8px 4px":"9px 8px",borderRadius:10,fontSize:isMobile?11:12,fontWeight:500,border:`1.5px solid ${th.bd}`,background:th.bg,color:formCat?th.tx:th.tm,outline:"none",fontFamily:"inherit",minWidth:isMobile?80:100,flexShrink:0,cursor:"pointer"}}>
             <option value="">Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
           </select>}
-          {submitOpen&&<button onClick={handleSubmit} disabled={!canSubmit}
-            style={{padding:isMobile?"8px 12px":"9px 18px",borderRadius:10,border:"none",background:!canSubmit?th.bd:th.ac,color:!canSubmit?th.tm:"#fff",fontSize:isMobile?11:12,fontWeight:700,fontFamily:"inherit",cursor:!canSubmit?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0}}>Report</button>}
+          {submitOpen&&<button onClick={handleSubmit} disabled={!canSubmit||submitting}
+            style={{padding:isMobile?"8px 12px":"9px 18px",borderRadius:10,border:"none",background:!canSubmit||submitting?th.bd:th.ac,color:!canSubmit||submitting?th.tm:"#fff",fontSize:isMobile?11:12,fontWeight:700,fontFamily:"inherit",cursor:!canSubmit||submitting?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0}}>{submitting?"…":"Report"}</button>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
           {!isMobile&&<button onClick={()=>setShowDots(!showDots)} style={{background:showDots?th.as:"transparent",border:`1px solid ${showDots?th.ac+'25':th.bd}`,color:showDots?th.ac:th.tm,width:32,height:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}} title="Toggle dots">●</button>}
@@ -383,13 +540,40 @@ export default function App(){
           <button onClick={toggleDark} style={{background:"transparent",border:`1px solid ${th.bd}`,color:th.tm,width:isMobile?30:32,height:isMobile?30:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:isMobile?12:13}}>{dark?"☀":"☽"}</button>
         </div>
       </div>
-      {submitOpen&&<div style={{padding:isMobile?"0 10px 6px":"0 16px 8px",display:"flex",alignItems:"center",gap:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10.5,color:th.tm,fontWeight:500}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:userLoc?"#22c55e":locating?th.ac:"#ef4444",animation:locating?"pulse 1s infinite":"none"}}/>
-          {locating?"Detecting location…":userLoc?`Posting from ${userCountry||'Unknown'}`:"Location needed"}
-          {!userLoc&&!locating&&<button onClick={requestLoc} style={{background:th.ac,color:"#fff",border:"none",borderRadius:5,padding:"2px 8px",fontSize:9.5,fontWeight:600,cursor:"pointer",marginLeft:4}}>Enable</button>}
+      {submitOpen&&<div style={{padding:isMobile?"6px 10px 8px":"6px 16px 10px",display:"flex",flexDirection:"column",gap:6}}>
+        {/* Granularity picker */}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:10.5,color:th.tm,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Scope:</span>
+          {[["country","Country"],["subdivision",subLabel],["city","City"]].map(([k,l])=>
+            <button key={k} onClick={()=>setFormGran(k)} style={{padding:"3px 10px",borderRadius:12,fontSize:10,fontWeight:600,border:formGran===k?`1.5px solid ${th.ac}`:`1px solid ${th.bd}`,background:formGran===k?th.as:"transparent",color:formGran===k?th.ac:th.tm,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          )}
+          <span style={{fontSize:10,color:th.tm,fontStyle:"italic"}}>
+            {formGran==='country'?'Posted as country-level (most private)':formGran==='subdivision'?`Posted at ${subLabel.toLowerCase()} level`:'Posted near city (coords rounded for privacy)'}
+          </span>
         </div>
-        {submitted&&<span style={{marginLeft:"auto",color:th.ac,fontWeight:700,fontSize:11,animation:"fadeIn 0.2s ease"}}>✓ Problem reported!</span>}
+        {/* Location selectors */}
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <select value={formCountryIso} onChange={e=>{const iso=e.target.value;setFormCountryIso(iso);const c=countriesList.find(x=>x.iso2===iso);setFormCountryName(c?.name||'')}}
+            style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:500,border:`1px solid ${th.bd}`,background:th.bg,color:formCountryIso?th.tx:th.tm,outline:"none",fontFamily:"inherit",cursor:"pointer",minWidth:140}}>
+            <option value="">Select country…</option>
+            {countriesList.map(c=><option key={c.iso2} value={c.iso2}>{c.emoji||''} {c.name}</option>)}
+          </select>
+          {formGran!=='country' && formCountryIso && (
+            <select value={formStateCode} onChange={e=>{const code=e.target.value;setFormStateCode(code);const s=statesList.find(x=>(x.iso2||x.state_code)===code);setFormStateName(s?.name||'')}}
+              style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:500,border:`1px solid ${th.bd}`,background:th.bg,color:formStateCode?th.tx:th.tm,outline:"none",fontFamily:"inherit",cursor:"pointer",minWidth:140}}>
+              <option value="">Select {subLabel.toLowerCase()}…</option>
+              {statesList.map(s=><option key={s.iso2||s.state_code} value={s.iso2||s.state_code}>{s.name}</option>)}
+            </select>
+          )}
+          {formGran==='city' && formStateCode && (
+            <select value={formCityName} onChange={e=>setFormCityName(e.target.value)}
+              style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:500,border:`1px solid ${th.bd}`,background:th.bg,color:formCityName?th.tx:th.tm,outline:"none",fontFamily:"inherit",cursor:"pointer",minWidth:140}}>
+              <option value="">Select city…</option>
+              {citiesList.map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}
+            </select>
+          )}
+          {submitted&&<span style={{marginLeft:"auto",color:th.ac,fontWeight:700,fontSize:11,animation:"fadeIn 0.2s ease"}}>✓ Problem reported!</span>}
+        </div>
       </div>}
     </header>
 
@@ -427,10 +611,10 @@ export default function App(){
         <div style={{background:th.bg,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
           <p style={{fontSize:12,fontWeight:700,color:th.ac,marginBottom:8,letterSpacing:"0.03em"}}>HOW IT WORKS</p>
           <p style={{fontSize:isMobile?11.5:12.5,lineHeight:1.55,color:th.tx,fontWeight:500}}>
-            <span style={{fontWeight:700}}>Explore</span> — pan and zoom the map. Zoomed out you'll see global problems. Zoom into your area to find what matters closest to home — that's a great place to start.
-            <br/><span style={{fontWeight:700}}>Report</span> — type your problem in the top bar. It gets tagged to your country, not your exact location.
-            <br/><span style={{fontWeight:700}}>Vote</span> — hit +1 on problems you recognize. After 10 votes, an issue becomes a confirmed problem.
-            <br/><span style={{fontWeight:700}}>Flag needs</span> — after voting, you can also flag a problem as a basic human need. This helps surface the most critical issues.
+            <span style={{fontWeight:700}}>Explore</span> — pan and zoom the map. Zoomed out you'll see global problems. Zoom in to find what matters closer to home.
+            <br/><span style={{fontWeight:700}}>Report</span> — type your problem, pick a scope (country / {subLabel.toLowerCase()} / city). You choose how local it gets — coords are snapped to what you pick for privacy.
+            <br/><span style={{fontWeight:700}}>Vote</span> — hit +1 on problems you recognize. One vote per person per problem. After 10 votes, an issue becomes a confirmed problem.
+            <br/><span style={{fontWeight:700}}>Flag needs</span> — after voting, flag a problem as a basic human need to help surface the most critical issues.
           </p></div>
         <div style={{background:dark?"#1a1520":"#faf5ff",borderRadius:12,padding:"14px 16px",marginBottom:22,border:`1px solid ${dark?"#2d2440":"#ede4f7"}`}}>
           <p style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:6}}>A NOTE ON WHAT YOU POST</p>
