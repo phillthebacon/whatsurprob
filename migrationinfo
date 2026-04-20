@@ -1,132 +1,62 @@
--- ============================================================
--- whatsurprob migration: v2 (variable-free)
--- Run in Supabase → SQL Editor → New Query → Run
--- ============================================================
--- Run this whole file at once. If Supabase still complains about
--- parsing variables, run the sections one at a time (separated by
--- the "-- ===" comment blocks).
+# whatsurprob — v2 Migration Notes
 
--- ============================================================
--- SECTION 1: Add columns to problems table
--- ============================================================
-ALTER TABLE problems ADD COLUMN IF NOT EXISTS subdivision TEXT;
-ALTER TABLE problems ADD COLUMN IF NOT EXISTS city TEXT;
-ALTER TABLE problems ADD COLUMN IF NOT EXISTS granularity TEXT DEFAULT 'country';
-ALTER TABLE problems ADD COLUMN IF NOT EXISTS needs INTEGER DEFAULT 0;
+This update adds:
+- **Anti-bot voting**: anonymous session UUIDs stored in localStorage + server-side dedup table
+- **Granularity picker**: poster chooses country / subdivision / city scope; coords snap accordingly
+- **Dynamic subdivision labels**: "State" in US, "Province" in Canada, "Prefecture" in Japan, etc.
+- **Demo mode flag**: `VITE_USE_SEED_DATA=true` for local demos with fake data
+- **Supabase wiring**: fetch/submit/vote all hit the real DB now
 
-CREATE INDEX IF NOT EXISTS idx_problems_granularity ON problems (granularity);
-CREATE INDEX IF NOT EXISTS idx_problems_subdivision ON problems (subdivision);
+## How to deploy this update
 
--- ============================================================
--- SECTION 2: Create votes_log table
--- ============================================================
-CREATE TABLE IF NOT EXISTS votes_log (
-  id BIGSERIAL PRIMARY KEY,
-  session_id TEXT NOT NULL,
-  problem_id UUID NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
-  vote_type TEXT NOT NULL CHECK (vote_type IN ('vote','need')),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (session_id, problem_id, vote_type)
-);
+### 1. Install the new dependency
+In your local project folder:
+```
+npm install @countrystatecity/countries-browser
+```
+(Or just replace `package.json` with the new one and run `npm install`.)
 
-CREATE INDEX IF NOT EXISTS idx_votes_log_session ON votes_log (session_id);
-CREATE INDEX IF NOT EXISTS idx_votes_log_problem ON votes_log (problem_id);
+### 2. Run the migration SQL in Supabase
+- Open Supabase → your project → SQL Editor → New Query
+- Copy all of `migration.sql` into the editor
+- Click Run. Should say "Success. No rows returned."
+- Verify by running: `SELECT column_name FROM information_schema.columns WHERE table_name='problems';`
+  You should see `subdivision`, `city`, `granularity`, `needs` in the list.
 
-ALTER TABLE votes_log ENABLE ROW LEVEL SECURITY;
+### 3. Replace your files
+Replace these files on GitHub (or locally then push):
+- `src/App.jsx` (new version)
+- `src/api.js` (new version)
+- `src/geo.js` (new file)
+- `package.json` (new dependency added)
 
-DROP POLICY IF EXISTS "Anyone can read votes_log" ON votes_log;
-CREATE POLICY "Anyone can read votes_log" ON votes_log FOR SELECT USING (true);
+Do NOT replace `src/supabase.js` — that still has your keys.
 
-DROP POLICY IF EXISTS "Anyone can insert votes_log" ON votes_log;
-CREATE POLICY "Anyone can insert votes_log" ON votes_log FOR INSERT WITH CHECK (true);
+### 4. Push to GitHub
+Vercel will auto-deploy. If the build fails, check the log for the actual error and send it over.
 
-DROP POLICY IF EXISTS "Anyone can delete votes_log" ON votes_log;
-CREATE POLICY "Anyone can delete votes_log" ON votes_log FOR DELETE USING (true);
+### 5. Test it
+- Open your live site
+- Type a problem, pick Category, pick Scope (start with Country)
+- Select your country from the dropdown
+- Hit Report
+- Refresh the page — your problem should still be there (it's in the DB now)
+- Try voting twice on the same problem from the same browser — should toggle, not double-count
+- Try opening an incognito window and voting — separate session, separate vote (this is expected)
 
--- ============================================================
--- SECTION 3: Atomic vote function (no local variables)
--- ============================================================
--- Using CTEs and plain SQL language so there's nothing for the
--- parser to confuse with table names.
+## Demo mode
 
-DROP FUNCTION IF EXISTS cast_vote(TEXT, UUID, TEXT, BOOLEAN);
+For local demos when you don't want to hit the real DB, create a `.env.local` file at the project root:
+```
+VITE_USE_SEED_DATA=true
+```
+Then `npm run dev`. The app will use fake seed data and show a "DEMO" badge in the header. Votes/posts won't persist.
 
-CREATE FUNCTION cast_vote(
-  p_session_id TEXT,
-  p_problem_id UUID,
-  p_vote_type TEXT,
-  p_add BOOLEAN
-) RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-AS $func$
-  WITH
-    validated AS (
-      SELECT p_vote_type IN ('vote','need') AS ok
-    ),
-    existing AS (
-      SELECT COUNT(*) AS n FROM votes_log
-      WHERE session_id = p_session_id
-        AND problem_id = p_problem_id
-        AND vote_type = p_vote_type
-    ),
-    do_insert AS (
-      INSERT INTO votes_log (session_id, problem_id, vote_type)
-      SELECT p_session_id, p_problem_id, p_vote_type
-      WHERE (SELECT ok FROM validated)
-        AND p_add = TRUE
-        AND (SELECT n FROM existing) = 0
-      RETURNING 1 AS applied
-    ),
-    do_delete AS (
-      DELETE FROM votes_log
-      WHERE session_id = p_session_id
-        AND problem_id = p_problem_id
-        AND vote_type = p_vote_type
-        AND (SELECT ok FROM validated)
-        AND p_add = FALSE
-        AND (SELECT n FROM existing) > 0
-      RETURNING 1 AS applied
-    ),
-    update_votes AS (
-      UPDATE problems
-      SET votes = GREATEST(0, COALESCE(votes,0) +
-        CASE
-          WHEN EXISTS (SELECT 1 FROM do_insert) AND p_vote_type = 'vote' THEN 1
-          WHEN EXISTS (SELECT 1 FROM do_delete) AND p_vote_type = 'vote' THEN -1
-          ELSE 0
-        END),
-      needs = GREATEST(0, COALESCE(needs,0) +
-        CASE
-          WHEN EXISTS (SELECT 1 FROM do_insert) AND p_vote_type = 'need' THEN 1
-          WHEN EXISTS (SELECT 1 FROM do_delete) AND p_vote_type = 'need' THEN -1
-          ELSE 0
-        END)
-      WHERE id = p_problem_id
-        AND (EXISTS (SELECT 1 FROM do_insert) OR EXISTS (SELECT 1 FROM do_delete))
-      RETURNING 1 AS updated
-    )
-  SELECT EXISTS (SELECT 1 FROM do_insert) OR EXISTS (SELECT 1 FROM do_delete)
-    OR (SELECT updated IS NOT NULL FROM update_votes LIMIT 1);
-$func$;
+Remove or set to `false` for production.
 
--- ============================================================
--- SECTION 4: Helper to fetch session votes
--- ============================================================
-DROP FUNCTION IF EXISTS get_session_votes(TEXT);
+## Known limitations / future work
 
-CREATE FUNCTION get_session_votes(p_session_id TEXT)
-RETURNS TABLE(problem_id UUID, vote_type TEXT)
-LANGUAGE sql
-AS $func$
-  SELECT problem_id, vote_type
-  FROM votes_log
-  WHERE session_id = p_session_id;
-$func$;
-
--- ============================================================
--- Verify:
--- SELECT column_name FROM information_schema.columns WHERE table_name='problems';
--- SELECT tablename FROM pg_tables WHERE schemaname='public';
--- SELECT cast_vote('test-session', (SELECT id FROM problems LIMIT 1), 'vote', true);
--- ============================================================
+- **Abuse**: Anyone can clear localStorage or use incognito to reset their session. This friction is the point — it's not perfect, but it's enough to stop casual botting. True IP-based rate-limiting would need Supabase Edge Functions.
+- **Dispute system**: Not added yet. The plan: a flag button that increments a separate `disputes` counter on a problem. Does NOT hide the problem — just shows "X votes, Y disputes" so viewers can judge for themselves.
+- **Subdivision coverage**: Uses @countrystatecity/countries-browser's data. Most countries covered. If a user picks a country with no states in the dataset, the subdivision dropdown will be empty; they should pick Country scope instead.
+- **City coords privacy**: Rounded to 1 decimal place (~11 km). User already chose to share their city name, so this is a reasonable privacy/utility balance.
