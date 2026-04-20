@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as d3 from "d3";
 import { fetchProblems, fetchDots, fetchMyVotes, submitProblem, castVote, castNeed } from "./api.js";
-import { getCountries, getStates, getCities, getSubdivisionLabel, snapCoords } from "./geo.js";
+import { getStates, getCities, getSubdivisionLabel, snapCoords } from "./geo.js";
 
 // Demo mode toggle — set VITE_USE_SEED_DATA=true in .env.local for local testing with fake data
 const USE_SEED = import.meta.env?.VITE_USE_SEED_DATA === 'true';
@@ -92,7 +92,6 @@ export default function App() {
   const[formStateCode,setFormStateCode]=useState("");
   const[formStateName,setFormStateName]=useState("");
   const[formCityName,setFormCityName]=useState("");
-  const[countriesList,setCountriesList]=useState([]);
   const[statesList,setStatesList]=useState([]);
   const[citiesList,setCitiesList]=useState([]);
   const[submitted,setSubmitted]=useState(false);
@@ -138,13 +137,7 @@ export default function App() {
     })();
   },[]);
 
-  // Load countries list for the form (lazy — only when form opens)
-  useEffect(()=>{
-    if (!submitOpen || countriesList.length > 0) return;
-    getCountries().then(list => setCountriesList(list)).catch(e => console.error('getCountries:', e));
-  },[submitOpen, countriesList.length]);
-
-  // Fetch states when country changes
+  // Fetch states when country changes (country is auto-set from geolocation)
   useEffect(()=>{
     if (!formCountryIso) { setStatesList([]); return; }
     getStates(formCountryIso).then(list => setStatesList(list || [])).catch(()=>setStatesList([]));
@@ -318,9 +311,9 @@ export default function App() {
     else if(sortBy==='rising'){arr.sort((a,b)=>tv(b)-tv(a))}
     return arr};
 
-  // canSubmit depends on granularity
+  // canSubmit depends on granularity and detected location
   const canSubmit=(()=>{
-    if(!formCat || !formDesc.trim() || !formCountryIso) return false;
+    if(!formCat || !formDesc.trim() || !userLoc || !formCountryIso) return false;
     if(formGran==='subdivision' && !formStateCode) return false;
     if(formGran==='city' && (!formStateCode || !formCityName)) return false;
     return true;
@@ -331,14 +324,14 @@ export default function App() {
     setSubmitting(true);
 
     let lat, lng, subdivision=null, city=null;
-    const countryObj = countriesList.find(c=>c.iso2===formCountryIso);
     if (formGran === 'country') {
-      lat = parseFloat(countryObj?.latitude ?? 0);
-      lng = parseFloat(countryObj?.longitude ?? 0);
+      // Use detected location coords directly — they're already in the user's country
+      lat = userLoc?.lat ?? 0;
+      lng = userLoc?.lng ?? 0;
     } else if (formGran === 'subdivision') {
       const st = statesList.find(s=>s.iso2===formStateCode || s.state_code===formStateCode);
-      lat = parseFloat(st?.latitude ?? countryObj?.latitude ?? 0);
-      lng = parseFloat(st?.longitude ?? countryObj?.longitude ?? 0);
+      lat = parseFloat(st?.latitude ?? userLoc?.lat ?? 0);
+      lng = parseFloat(st?.longitude ?? userLoc?.lng ?? 0);
       subdivision = formStateName;
     } else { // city
       const ct = citiesList.find(c=>c.name===formCityName);
@@ -551,13 +544,13 @@ export default function App() {
             {formGran==='country'?'Posted as country-level (most private)':formGran==='subdivision'?`Posted at ${subLabel.toLowerCase()} level`:'Posted near city (coords rounded for privacy)'}
           </span>
         </div>
-        {/* Location selectors */}
+        {/* Location selectors — country is locked to detected location */}
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          <select value={formCountryIso} onChange={e=>{const iso=e.target.value;setFormCountryIso(iso);const c=countriesList.find(x=>x.iso2===iso);setFormCountryName(c?.name||'')}}
-            style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:500,border:`1px solid ${th.bd}`,background:th.bg,color:formCountryIso?th.tx:th.tm,outline:"none",fontFamily:"inherit",cursor:"pointer",minWidth:140}}>
-            <option value="">Select country…</option>
-            {countriesList.map(c=><option key={c.iso2} value={c.iso2}>{c.emoji||''} {c.name}</option>)}
-          </select>
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:th.tm,fontWeight:500}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:userLoc?"#22c55e":locating?th.ac:"#ef4444",animation:locating?"pulse 1s infinite":"none"}}/>
+            {locating?"Detecting location…":userLoc?<span>Posting from <span style={{color:th.tx,fontWeight:700}}>{userCountry||'Unknown'}</span></span>:"Location needed"}
+            {!userLoc&&!locating&&<button onClick={requestLoc} style={{background:th.ac,color:"#fff",border:"none",borderRadius:5,padding:"2px 8px",fontSize:9.5,fontWeight:600,cursor:"pointer",marginLeft:4}}>Enable</button>}
+          </div>
           {formGran!=='country' && formCountryIso && (
             <select value={formStateCode} onChange={e=>{const code=e.target.value;setFormStateCode(code);const s=statesList.find(x=>(x.iso2||x.state_code)===code);setFormStateName(s?.name||'')}}
               style={{padding:"6px 8px",borderRadius:8,fontSize:11,fontWeight:500,border:`1px solid ${th.bd}`,background:th.bg,color:formStateCode?th.tx:th.tm,outline:"none",fontFamily:"inherit",cursor:"pointer",minWidth:140}}>
@@ -612,7 +605,7 @@ export default function App() {
           <p style={{fontSize:12,fontWeight:700,color:th.ac,marginBottom:8,letterSpacing:"0.03em"}}>HOW IT WORKS</p>
           <p style={{fontSize:isMobile?11.5:12.5,lineHeight:1.55,color:th.tx,fontWeight:500}}>
             <span style={{fontWeight:700}}>Explore</span> — pan and zoom the map. Zoomed out you'll see global problems. Zoom in to find what matters closer to home.
-            <br/><span style={{fontWeight:700}}>Report</span> — type your problem, pick a scope (country / {subLabel.toLowerCase()} / city). You choose how local it gets — coords are snapped to what you pick for privacy.
+            <br/><span style={{fontWeight:700}}>Report</span> — type your problem, pick a scope (country / region / city). Your country is detected automatically so you can only post about where you are.
             <br/><span style={{fontWeight:700}}>Vote</span> — hit +1 on problems you recognize. One vote per person per problem. After 10 votes, an issue becomes a confirmed problem.
             <br/><span style={{fontWeight:700}}>Flag needs</span> — after voting, flag a problem as a basic human need to help surface the most critical issues.
           </p></div>
