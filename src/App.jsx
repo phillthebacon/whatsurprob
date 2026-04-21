@@ -496,11 +496,12 @@ export default function App() {
     <header style={{borderBottom:`1px solid ${th.bd}`,background:th.sf,zIndex:30,flexShrink:0}}>
       <div style={{display:"flex",alignItems:"center",gap:isMobile?8:12,padding:isMobile?"8px 10px":"8px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:isMobile?6:10,flexShrink:0}}>
-          <div style={{width:isMobile?28:30,height:isMobile?28:30,borderRadius:8,background:`linear-gradient(135deg,${th.ac},#a78bfa)`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:isMobile?12:14,fontWeight:800}}>?</div>
-          {!isMobile&&<span style={{fontSize:15,fontWeight:800,letterSpacing:"-0.04em"}}>whatsurprob{USE_SEED&&<span style={{fontSize:9,color:"#f59e0b",marginLeft:6,fontWeight:600}}>DEMO</span>}</span>}
+          <img src="/logo-small.jpg" alt="Fix It All logo" width={isMobile?40:46} height={isMobile?40:46} style={{flexShrink:0,borderRadius:8,display:"block",objectFit:"cover"}}/>
+          {!isMobile&&<span style={{fontSize:15,fontWeight:800,letterSpacing:"-0.04em"}}>Fix It All<span style={{color:th.tm,fontWeight:500}}>.World</span>{USE_SEED&&<span style={{fontSize:9,color:"#f59e0b",marginLeft:6,fontWeight:600}}>DEMO</span>}</span>}
         </div>
-        <div style={{flex:1,display:"flex",alignItems:"center",gap:isMobile?6:8}}>
-          <input className="hi" value={formDesc} onChange={e=>setFormDesc(e.target.value)} placeholder="whats your problem?"
+        <div style={{flex:1,display:"flex",justifyContent:"center",alignItems:"center",gap:isMobile?6:8,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:isMobile?6:8,width:"100%",maxWidth:720,minWidth:0}}>
+          <input className="hi" value={formDesc} onChange={e=>setFormDesc(e.target.value)} placeholder="what should we fix first?"
             onFocus={()=>{if(!userLoc&&!locating)requestLoc();setSubmitOpen(true)}}
             style={{flex:1,padding:isMobile?"8px 10px":"9px 14px",borderRadius:10,fontSize:isMobile?12:13,fontWeight:500,border:`1.5px solid ${th.bd}`,background:th.bg,color:th.tx,outline:"none",fontFamily:"inherit",transition:"all 0.2s",minWidth:0}}/>
           {submitOpen&&<select value={formCat} onChange={e=>setFormCat(e.target.value)}
@@ -509,6 +510,7 @@ export default function App() {
           </select>}
           {submitOpen&&<button onClick={handleSubmit} disabled={!canSubmit||submitting}
             style={{padding:isMobile?"8px 12px":"9px 18px",borderRadius:10,border:"none",background:!canSubmit||submitting?th.bd:th.ac,color:!canSubmit||submitting?th.tm:"#fff",fontSize:isMobile?11:12,fontWeight:700,fontFamily:"inherit",cursor:!canSubmit||submitting?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0}}>{submitting?"…":"Report"}</button>}
+          </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
           {!isMobile&&<button onClick={()=>setShowDots(!showDots)} style={{background:showDots?th.as:"transparent",border:`1px solid ${showDots?th.ac+'25':th.bd}`,color:showDots?th.ac:th.tm,width:32,height:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}} title="Toggle dots">●</button>}
@@ -516,7 +518,8 @@ export default function App() {
           <button onClick={toggleDark} style={{background:"transparent",border:`1px solid ${th.bd}`,color:th.tm,width:isMobile?30:32,height:isMobile?30:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:isMobile?12:13}}>{dark?"☀":"☽"}</button>
         </div>
       </div>
-      {submitOpen&&<div style={{padding:isMobile?"6px 10px 8px":"6px 16px 10px",display:"flex",flexDirection:"column",gap:6}}>
+      {submitOpen&&<div style={{padding:isMobile?"6px 10px 8px":"6px 16px 10px",display:"flex",justifyContent:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:6,width:"100%",maxWidth:720}}>
         {/* Granularity picker */}
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <span style={{fontSize:10.5,color:th.tm,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Scope:</span>
@@ -550,6 +553,7 @@ export default function App() {
           )}
           {submitted&&<span style={{marginLeft:"auto",color:th.ac,fontWeight:700,fontSize:11,animation:"fadeIn 0.2s ease"}}>✓ Problem reported!</span>}
         </div>
+        </div>
       </div>}
     </header>
 
@@ -579,9 +583,9 @@ export default function App() {
     {showWelcome&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",backdropFilter:"blur(6px)",animation:"fadeIn 0.3s ease",padding:isMobile?12:0}} onClick={()=>setShowWelcome(false)}>
       <div onClick={e=>e.stopPropagation()} style={{background:th.sf,borderRadius:20,padding:isMobile?"28px 20px 22px":"36px 32px 28px",maxWidth:460,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",animation:"popIn 0.35s ease",maxHeight:isMobile?"85vh":"none",overflowY:isMobile?"auto":"visible"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
-          <div style={{width:38,height:38,borderRadius:10,background:`linear-gradient(135deg,${th.ac},#a78bfa)`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:18,fontWeight:800,flexShrink:0}}>?</div>
-          <div><h2 style={{fontSize:isMobile?20:22,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1}}>whatsurprob</h2>
-            <p style={{fontSize:10,color:th.tm,letterSpacing:"0.08em",fontWeight:500,marginTop:2}}>THE WORLD'S PROBLEMS, MAPPED</p></div></div>
+          <img src="/logo.jpg" alt="Fix It All logo" width="56" height="56" style={{flexShrink:0,borderRadius:12,display:"block",objectFit:"cover"}}/>
+          <div><h2 style={{fontSize:isMobile?20:22,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1}}>Fix It All<span style={{color:th.tm,fontWeight:500}}>.World</span></h2>
+            <p style={{fontSize:10,color:th.tm,letterSpacing:"0.08em",fontWeight:500,marginTop:2}}>TOGETHER, WE FIX IT ALL</p></div></div>
         <p style={{fontSize:isMobile?13:14,lineHeight:1.6,fontWeight:500,marginBottom:6,color:th.tx}}>The first step to solving any problem is becoming aware it exists.</p>
         <p style={{fontSize:isMobile?12:13,lineHeight:1.6,fontWeight:400,marginBottom:16,color:th.tm}}>This is a place to see what's wrong in the world — and come together around it. Report real problems, vote on what matters, and help the most important issues rise to the top.</p>
         <div style={{background:th.bg,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
