@@ -43,7 +43,7 @@ export async function fetchProblems({ north, south, east, west }) {
 
 export async function fetchDots() {
   const { data, error } = await supabase.from('problems')
-    .select('id,lat,lng,category,votes,needs')
+    .select('id,lat,lng,category,votes,needs,description,country,subdivision,city,granularity,created_at')
     .order('votes', { ascending: false })
     .limit(2000)
   if (error) { console.error('fetchDots:', error); return [] }
