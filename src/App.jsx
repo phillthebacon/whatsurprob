@@ -571,7 +571,7 @@ export default function App() {
           <span style={{fontWeight:600}}>{zoomK.toFixed(1)}x</span>
           <div style={{width:40,height:3,background:th.bd,borderRadius:2}}><div style={{width:`${Math.min(100,(zoomK/25)*100)}%`,height:"100%",background:th.ac,borderRadius:2,transition:"width 0.15s"}}/></div>
           {zoomK>2.5&&<span style={{color:th.ac,fontWeight:600}}>States visible</span>}</div>}
-        {isMobile&&!sheetOpen&&<button onClick={()=>setSheetOpen(true)} style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:th.ac,border:"none",color:"#fff",borderRadius:999,padding:"12px 22px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,0.3)",fontFamily:"inherit",fontSize:14,fontWeight:700,WebkitTapHighlightColor:"transparent"}}>
+        {isMobile&&!sheetOpen&&!showWelcome&&<button onClick={()=>setSheetOpen(true)} style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:th.ac,border:"none",color:"#fff",borderRadius:999,padding:"12px 22px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,0.3)",fontFamily:"inherit",fontSize:14,fontWeight:700,WebkitTapHighlightColor:"transparent"}}>
           <span style={{fontSize:14}}>▲</span>{dp.length} problem{dp.length!==1?'s':''}</button>}
       </div>
       {!isMobile&&<div style={{width:380,background:th.sf,borderLeft:`1px solid ${th.bd}`,display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:`-4px 0 20px ${th.sh}`}}>{sidebarContent}</div>}
