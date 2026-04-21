@@ -571,8 +571,8 @@ export default function App() {
           <span style={{fontWeight:600}}>{zoomK.toFixed(1)}x</span>
           <div style={{width:40,height:3,background:th.bd,borderRadius:2}}><div style={{width:`${Math.min(100,(zoomK/25)*100)}%`,height:"100%",background:th.ac,borderRadius:2,transition:"width 0.15s"}}/></div>
           {zoomK>2.5&&<span style={{color:th.ac,fontWeight:600}}>States visible</span>}</div>}
-        {isMobile&&<button onClick={()=>setSheetOpen(!sheetOpen)} style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",background:th.sf,border:`1px solid ${th.bd}`,borderBottom:"none",borderRadius:"12px 12px 0 0",padding:"8px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer",zIndex:20,boxShadow:`0 -2px 10px ${th.sh}`}}>
-          <div style={{width:32,height:3,borderRadius:2,background:th.bd}}/><span style={{fontSize:11,fontWeight:700,color:th.tx}}>{dp.length} problem{dp.length!==1?'s':''}</span></button>}
+        {isMobile&&!sheetOpen&&<button onClick={()=>setSheetOpen(true)} style={{position:"absolute",bottom:16,left:"50%",transform:"translateX(-50%)",background:th.ac,border:"none",color:"#fff",borderRadius:24,padding:"10px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",zIndex:20,boxShadow:`0 4px 16px ${th.sh}`,fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+          <span style={{fontSize:14}}>▲</span>{dp.length} problem{dp.length!==1?'s':''}</button>}
       </div>
       {!isMobile&&<div style={{width:380,background:th.sf,borderLeft:`1px solid ${th.bd}`,display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:`-4px 0 20px ${th.sh}`}}>{sidebarContent}</div>}
       {isMobile&&sheetOpen&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:"65vh",background:th.sf,borderTop:`1px solid ${th.bd}`,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:`0 -4px 20px ${th.sh}`,zIndex:25,animation:"slideUp 0.25s ease"}}>
