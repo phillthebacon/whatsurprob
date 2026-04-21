@@ -478,7 +478,7 @@ export default function App() {
         </div>})}</div>
   </>;
 
-  return(<div style={{width:"100%",height:"100vh",background:th.bg,color:th.tx,fontFamily:"'Outfit',system-ui,sans-serif",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.3s"}}>
+  return(<div style={{width:"100%",height:"100dvh",minHeight:"100vh",background:th.bg,color:th.tx,fontFamily:"'Outfit',system-ui,sans-serif",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.3s"}}>
     <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
       *{box-sizing:border-box;margin:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${th.bd};border-radius:10px}
       .vb:hover{background:${th.as}!important;border-color:${th.ac}!important;color:${th.ac}!important}
@@ -571,11 +571,11 @@ export default function App() {
           <span style={{fontWeight:600}}>{zoomK.toFixed(1)}x</span>
           <div style={{width:40,height:3,background:th.bd,borderRadius:2}}><div style={{width:`${Math.min(100,(zoomK/25)*100)}%`,height:"100%",background:th.ac,borderRadius:2,transition:"width 0.15s"}}/></div>
           {zoomK>2.5&&<span style={{color:th.ac,fontWeight:600}}>States visible</span>}</div>}
-        {isMobile&&!sheetOpen&&<button onClick={()=>setSheetOpen(true)} style={{position:"absolute",bottom:16,left:"50%",transform:"translateX(-50%)",background:th.ac,border:"none",color:"#fff",borderRadius:24,padding:"10px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",zIndex:20,boxShadow:`0 4px 16px ${th.sh}`,fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+        {isMobile&&!sheetOpen&&<button onClick={()=>setSheetOpen(true)} style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:th.ac,border:"none",color:"#fff",borderRadius:999,padding:"12px 22px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",zIndex:9999,boxShadow:"0 4px 16px rgba(0,0,0,0.3)",fontFamily:"inherit",fontSize:14,fontWeight:700,WebkitTapHighlightColor:"transparent"}}>
           <span style={{fontSize:14}}>▲</span>{dp.length} problem{dp.length!==1?'s':''}</button>}
       </div>
       {!isMobile&&<div style={{width:380,background:th.sf,borderLeft:`1px solid ${th.bd}`,display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:`-4px 0 20px ${th.sh}`}}>{sidebarContent}</div>}
-      {isMobile&&sheetOpen&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:"65vh",background:th.sf,borderTop:`1px solid ${th.bd}`,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:`0 -4px 20px ${th.sh}`,zIndex:25,animation:"slideUp 0.25s ease"}}>
+      {isMobile&&sheetOpen&&<div style={{position:"fixed",bottom:0,left:0,right:0,height:"70vh",background:th.sf,borderTop:`1px solid ${th.bd}`,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 -4px 20px rgba(0,0,0,0.2)",zIndex:9998,animation:"slideUp 0.25s ease"}}>
         <div onClick={()=>setSheetOpen(false)} style={{padding:"10px 0 6px",display:"flex",justifyContent:"center",cursor:"pointer",flexShrink:0}}><div style={{width:36,height:4,borderRadius:2,background:th.bd}}/></div>
         {sidebarContent}</div>}
     </div>
