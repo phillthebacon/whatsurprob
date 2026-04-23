@@ -591,10 +591,11 @@ export default function App() {
         <div style={{background:th.bg,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
           <p style={{fontSize:12,fontWeight:700,color:th.ac,marginBottom:8,letterSpacing:"0.03em"}}>HOW IT WORKS</p>
           <p style={{fontSize:isMobile?11.5:12.5,lineHeight:1.55,color:th.tx,fontWeight:500}}>
-            <span style={{fontWeight:700}}>Explore</span> — pan and zoom the map. Zoomed out you'll see global problems. Zoom in to find what matters closer to home.
-            <br/><span style={{fontWeight:700}}>Report</span> — type your problem, pick a scope (country / region / city). Your country is detected automatically so you can only post about where you are.
-            <br/><span style={{fontWeight:700}}>Vote</span> — hit +1 on problems you recognize. One vote per person per problem. After 10 votes, an issue becomes a confirmed problem.
-            <br/><span style={{fontWeight:700}}>Flag needs</span> — after voting, flag a problem as a basic human need to help surface the most critical issues.
+            <br/><span style={{fontWeight:700}}>What Is This?</span> — This is an effort to identify the biggest community and global issues, followed by a combined effort on solving these issues starting with the most voted.
+            <br/><span style={{fontWeight:700}}>Report</span> — Post what you think troubles you, the people around you, or the world the most.
+            <span style={{fontWeight:700}}>Vote</span> —  Vote on problems you think need to be focused on the most, anywhere around the world. 
+            <br/><span style={{fontWeight:700}}>How Will this Help?</span> — After we get a list of problems and votes, the next evolution of the site will focus on how we can solve the biggest issues.
+            
           </p></div>
         <div style={{background:dark?"#1a1520":"#faf5ff",borderRadius:12,padding:"14px 16px",marginBottom:22,border:`1px solid ${dark?"#2d2440":"#ede4f7"}`}}>
           <p style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:6}}>A NOTE ON WHAT YOU POST</p>
