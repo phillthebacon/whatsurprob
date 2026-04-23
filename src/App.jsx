@@ -598,8 +598,6 @@ export default function App() {
             
           </p></div>
         <div style={{background:dark?"#1a1520":"#faf5ff",borderRadius:12,padding:"14px 16px",marginBottom:22,border:`1px solid ${dark?"#2d2440":"#ede4f7"}`}}>
-          <p style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:6}}>A NOTE ON WHAT YOU POST</p>
-          <p style={{fontSize:isMobile?11:12,lineHeight:1.6,color:th.tx,fontWeight:500}}>This is an attempt to help humanity solve real problems. Posting garbage, hate, or jokes here isn't edgy — it's directly getting in the way of people trying to make things better. The good news? The community ignores it, it gets zero votes, and it quietly disappears. No attention. No reward. Just wasted effort.</p>
           <p style={{fontSize:11.5,lineHeight:1.6,color:th.tm,fontWeight:500,marginTop:8,fontStyle:"italic"}}>Use this for good. The world has enough noise.</p></div>
         <button onClick={()=>setShowWelcome(false)} style={{width:"100%",padding:isMobile?"12px":"13px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${th.ac},#a78bfa)`,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Got it — let me explore</button>
       </div>
