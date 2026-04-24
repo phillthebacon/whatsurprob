@@ -107,6 +107,8 @@ export default function App() {
   const[search,setSearch]=useState("");
   const[showDots,setShowDots]=useState(true);
   const[showWelcome,setShowWelcome]=useState(true);
+  const[pulseInput,setPulseInput]=useState(false);
+  const closeWelcome=()=>{setShowWelcome(false);setPulseInput(true);setTimeout(()=>setPulseInput(false),5000)};
   const[isMobile,setIsMobile]=useState(false);
   const[sheetOpen,setSheetOpen]=useState(false);
 
@@ -490,6 +492,9 @@ export default function App() {
       @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
       @keyframes spin{to{transform:rotate(360deg)}}
       @keyframes pulse{0%,100%{opacity:0.7}50%{opacity:1}}
+      @keyframes pulseGlow{0%,100%{border-color:#fbbf24;box-shadow:0 0 0 0 rgba(251,191,36,0.55)}50%{border-color:#f59e0b;box-shadow:0 0 0 6px rgba(251,191,36,0)}}
+      .pulse-input{animation:pulseGlow 1.4s ease-in-out infinite;border-color:#fbbf24!important}
+      .pulse-input:focus{animation:none}
       @keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
       @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
 
@@ -501,8 +506,8 @@ export default function App() {
         </div>
         <div style={{flex:1,display:"flex",justifyContent:"center",alignItems:"center",gap:isMobile?6:8,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:isMobile?6:8,width:"100%",maxWidth:720,minWidth:0}}>
-          <input className="hi" value={formDesc} onChange={e=>setFormDesc(e.target.value)} placeholder="what should we fix first?"
-            onFocus={()=>{if(!userLoc&&!locating)requestLoc();setSubmitOpen(true)}}
+          <input className={"hi"+(pulseInput?" pulse-input":"")} value={formDesc} onChange={e=>setFormDesc(e.target.value)} placeholder="what should we fix first?"
+            onFocus={()=>{setPulseInput(false);if(!userLoc&&!locating)requestLoc();setSubmitOpen(true)}}
             style={{flex:1,padding:isMobile?"8px 10px":"9px 14px",borderRadius:10,fontSize:isMobile?12:13,fontWeight:500,border:`1.5px solid ${th.bd}`,background:th.bg,color:th.tx,outline:"none",fontFamily:"inherit",transition:"all 0.2s",minWidth:0}}/>
           {submitOpen&&<select value={formCat} onChange={e=>setFormCat(e.target.value)}
             style={{padding:isMobile?"8px 4px":"9px 8px",borderRadius:10,fontSize:isMobile?11:12,fontWeight:500,border:`1.5px solid ${th.bd}`,background:th.bg,color:formCat?th.tx:th.tm,outline:"none",fontFamily:"inherit",minWidth:isMobile?80:100,flexShrink:0,cursor:"pointer"}}>
@@ -580,7 +585,7 @@ export default function App() {
         {sidebarContent}</div>}
     </div>
 
-    {showWelcome&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",backdropFilter:"blur(6px)",animation:"fadeIn 0.3s ease",padding:isMobile?12:0}} onClick={()=>setShowWelcome(false)}>
+    {showWelcome&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",backdropFilter:"blur(6px)",animation:"fadeIn 0.3s ease",padding:isMobile?12:0}} onClick={closeWelcome}>
       <div onClick={e=>e.stopPropagation()} style={{background:th.sf,borderRadius:20,padding:isMobile?"28px 20px 22px":"36px 32px 28px",maxWidth:460,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",animation:"popIn 0.35s ease",maxHeight:isMobile?"85vh":"none",overflowY:isMobile?"auto":"visible"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
           <img src="/logo.jpg" alt="Fix It All logo" width="56" height="56" style={{flexShrink:0,borderRadius:12,display:"block",objectFit:"cover"}}/>
@@ -591,15 +596,16 @@ export default function App() {
         <div style={{background:th.bg,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
           <p style={{fontSize:12,fontWeight:700,color:th.ac,marginBottom:8,letterSpacing:"0.03em"}}>HOW IT WORKS</p>
           <p style={{fontSize:isMobile?11.5:12.5,lineHeight:1.55,color:th.tx,fontWeight:500}}>
-            <br/><span style={{fontWeight:700}}>What Is This?</span> — This is an effort to identify the biggest community and global issues, followed by a combined effort on solving these issues starting with the most voted.
-            <br/><span style={{fontWeight:700}}>Report</span> — Post what you think troubles you, the people around you, or the world the most.
-            <span style={{fontWeight:700}}>Vote</span> —  Vote on problems you think need to be focused on the most, anywhere around the world. 
-            <br/><span style={{fontWeight:700}}>How Will this Help?</span> — After we get a list of problems and votes, the next evolution of the site will focus on how we can solve the biggest issues.
-            
+            <span style={{fontWeight:700}}>Explore</span> — pan and zoom the map. Zoomed out you'll see global problems. Zoom in to find what matters closer to home.
+            <br/><span style={{fontWeight:700}}>Report</span> — type your problem, pick a scope (country / region / city). Your country is detected automatically so you can only post about where you are.
+            <br/><span style={{fontWeight:700}}>Vote</span> — hit +1 on problems you recognize. One vote per person per problem. After 10 votes, an issue becomes a confirmed problem.
+            <br/><span style={{fontWeight:700}}>Flag needs</span> — after voting, flag a problem as a basic human need to help surface the most critical issues.
           </p></div>
         <div style={{background:dark?"#1a1520":"#faf5ff",borderRadius:12,padding:"14px 16px",marginBottom:22,border:`1px solid ${dark?"#2d2440":"#ede4f7"}`}}>
+          <p style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:6}}>A NOTE ON WHAT YOU POST</p>
+          <p style={{fontSize:isMobile?11:12,lineHeight:1.6,color:th.tx,fontWeight:500}}>This is an attempt to help humanity solve real problems. Posting garbage, hate, or jokes here isn't edgy — it's directly getting in the way of people trying to make things better. The good news? The community ignores it, it gets zero votes, and it quietly disappears. No attention. No reward. Just wasted effort.</p>
           <p style={{fontSize:11.5,lineHeight:1.6,color:th.tm,fontWeight:500,marginTop:8,fontStyle:"italic"}}>Use this for good. The world has enough noise.</p></div>
-        <button onClick={()=>setShowWelcome(false)} style={{width:"100%",padding:isMobile?"12px":"13px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${th.ac},#a78bfa)`,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Got it — let me explore</button>
+        <button onClick={closeWelcome} style={{width:"100%",padding:isMobile?"12px":"13px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${th.ac},#a78bfa)`,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Got it — let me explore</button>
       </div>
     </div>}
   </div>);
