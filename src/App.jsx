@@ -491,7 +491,7 @@ export default function App() {
       .search-input::placeholder{color:${th.tm}}
       @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
       @keyframes spin{to{transform:rotate(360deg)}}
-      @keyframes pulse{0%,100%{opacity:0.7}50%{opacity:1}}
+      @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
       @keyframes pulseGlow{0%,100%{border-color:#fbbf24;box-shadow:0 0 0 0 rgba(251,191,36,0.55)}50%{border-color:#f59e0b;box-shadow:0 0 0 6px rgba(251,191,36,0)}}
       .pulse-input{animation:pulseGlow 1.4s ease-in-out infinite;border-color:#fbbf24!important}
       .pulse-input:focus{animation:none}
