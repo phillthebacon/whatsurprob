@@ -108,7 +108,7 @@ export default function App() {
   const[showDots,setShowDots]=useState(true);
   const[showWelcome,setShowWelcome]=useState(true);
   const[pulseInput,setPulseInput]=useState(false);
-  const closeWelcome=()=>{setShowWelcome(false);setPulseInput(true);setTimeout(()=>setPulseInput(false),5000)};
+  const closeWelcome=()=>{setShowWelcome(false);setPulseInput(true);
   const[isMobile,setIsMobile]=useState(false);
   const[sheetOpen,setSheetOpen]=useState(false);
 
